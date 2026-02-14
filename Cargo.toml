@@ -13,7 +13,7 @@ serde_json = "1"
 toml = "0.8"
 indicatif = "0.17"
 winreg = "0.55"
-windows-sys = { version = "0.59", features = ["Win32_UI_WindowsAndMessaging", "Win32_Foundation", "Win32_Storage_FileSystem"] }
+windows-sys = { version = "0.59", features = ["Win32_UI_WindowsAndMessaging", "Win32_Foundation", "Win32_Storage_FileSystem", "Win32_System_SystemInformation"] }
 anyhow = "1"
 dialoguer = { version = "0.11", features = ["fuzzy-select"] }
 console = "0.15"

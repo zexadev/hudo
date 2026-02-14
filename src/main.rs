@@ -10,8 +10,7 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use cli::{Cli, Commands, ConfigAction};
 use config::HudoConfig;
-use dialoguer::{Select, theme::ColorfulTheme};
-use dialoguer::Confirm;
+use dialoguer::{Confirm, MultiSelect, Select, theme::ColorfulTheme};
 use installer::{DetectResult, InstallContext, EnvAction, all_installers};
 
 /// 确保配置已初始化（首次运行引导用户选择安装盘）
@@ -67,6 +66,91 @@ fn ensure_config() -> Result<HudoConfig> {
     ui::print_success(&format!("已创建 {}", root_dir));
 
     Ok(config)
+}
+
+/// 交互式多选安装
+async fn cmd_setup(config: &HudoConfig) -> Result<()> {
+    ui::print_title("hudo setup - 选择要安装的开发工具");
+
+    let installers = all_installers();
+    let ctx = InstallContext { config };
+
+    // 检测各工具当前状态，构建选项列表
+    let mut labels = Vec::new();
+    let mut defaults = Vec::new();
+
+    for inst in &installers {
+        let info = inst.info();
+        let status = match inst.detect_installed(&ctx).await {
+            Ok(DetectResult::InstalledByHudo(ver)) => {
+                format!(" {}", console::style(format!("[已安装 {}]", ver)).green())
+            }
+            Ok(DetectResult::InstalledExternal(ver)) => {
+                format!(" {}", console::style(format!("[系统 {}]", ver)).yellow())
+            }
+            Ok(DetectResult::NotInstalled) => String::new(),
+            Err(_) => format!(" {}", console::style("[检测失败]").red()),
+        };
+
+        labels.push(format!("{:<8} — {}{}", info.name, info.description, status));
+
+        // 默认勾选未安装的工具
+        defaults.push(matches!(
+            inst.detect_installed(&ctx).await,
+            Ok(DetectResult::NotInstalled)
+        ));
+    }
+
+    let selections = MultiSelect::with_theme(&ColorfulTheme::default())
+        .with_prompt("  用空格勾选，回车确认")
+        .items(&labels)
+        .defaults(&defaults)
+        .interact()
+        .context("选择被取消")?;
+
+    if selections.is_empty() {
+        ui::print_info("未选择任何工具，退出");
+        return Ok(());
+    }
+
+    // 确认
+    let selected_names: Vec<_> = selections.iter().map(|&i| installers[i].info().name).collect();
+    println!();
+    ui::print_info(&format!("即将安装: {}", selected_names.join(", ")));
+    let confirm = Confirm::new()
+        .with_prompt("  确认开始？")
+        .default(true)
+        .interact()
+        .context("确认被取消")?;
+
+    if !confirm {
+        ui::print_info("已取消");
+        return Ok(());
+    }
+
+    // 逐个安装
+    let total = selections.len();
+    for (idx, &sel) in selections.iter().enumerate() {
+        let info = installers[sel].info();
+        println!();
+        ui::print_step((idx + 1) as u32, total as u32, &format!("安装 {}", info.name));
+        if let Err(e) = cmd_install(config, info.id).await {
+            ui::print_error(&format!("{} 安装失败: {}", info.name, e));
+            let cont = Confirm::new()
+                .with_prompt("  是否继续安装其余工具？")
+                .default(true)
+                .interact()
+                .unwrap_or(false);
+            if !cont {
+                anyhow::bail!("用户中止安装");
+            }
+        }
+    }
+
+    println!();
+    ui::print_title("安装完成！");
+    ui::print_info("请打开新终端以使环境变量生效");
+    Ok(())
 }
 
 /// 安装单个工具
@@ -253,20 +337,27 @@ async fn cmd_list(config: &HudoConfig) -> Result<()> {
 
     let installers = all_installers();
     let ctx = InstallContext { config };
+    let reg = registry::InstallRegistry::load(&config.state_path())?;
 
     for inst in &installers {
         let info = inst.info();
         let status = match inst.detect_installed(&ctx).await {
-            Ok(DetectResult::InstalledByHudo(ver)) => console::style(ver).green().to_string(),
+            Ok(DetectResult::InstalledByHudo(ver)) => {
+                let extra = reg.get(info.id)
+                    .map(|s| format!("  安装于 {}", console::style(&s.installed_at).dim()))
+                    .unwrap_or_default();
+                format!("{}{}", console::style(ver).green(), extra)
+            }
             Ok(DetectResult::InstalledExternal(ver)) => {
-                format!("{} {}", console::style(ver).green(), console::style("(非 hudo)").yellow())
+                format!("{} {}", console::style(ver).green(), console::style("(非 hudo 管理)").yellow())
             }
             Ok(DetectResult::NotInstalled) => console::style("未安装").dim().to_string(),
             Err(_) => console::style("检测失败").red().to_string(),
         };
-        println!("  {:<12} {:<20} {}", info.name, info.description, status);
+        println!("  {:<8} {:<24} {}", info.name, info.description, status);
     }
 
+    println!();
     ui::print_info(&format!("安装根目录: {}", config.root_dir));
     Ok(())
 }
@@ -324,9 +415,7 @@ async fn main() -> Result<()> {
     match cli.command {
         Commands::Setup => {
             let config = ensure_config()?;
-            ui::print_title("hudo setup - 交互式安装");
-            ui::print_info("(setup 交互式多选将在后续阶段实现)");
-            let _ = config;
+            cmd_setup(&config).await?;
         }
         Commands::Install { tool } => {
             let config = ensure_config()?;

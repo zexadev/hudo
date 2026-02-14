@@ -43,7 +43,7 @@ impl Installer for GitInstaller {
         Ok(DetectResult::NotInstalled)
     }
 
-    fn resolve_download(&self, config: &HudoConfig) -> (String, String) {
+    fn resolve_download(&self, _config: &HudoConfig) -> (String, String) {
         let filename = format!("Git-{}-64-bit.exe", GIT_VERSION);
         let url = format!(
             "https://github.com/git-for-windows/git/releases/download/{}/{}",

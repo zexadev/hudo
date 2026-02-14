@@ -55,16 +55,23 @@ impl InstallRegistry {
     }
 
     /// 查询工具是否已安装
+    #[allow(dead_code)]
     pub fn get(&self, tool_id: &str) -> Option<&ToolState> {
         self.tools.get(tool_id)
     }
 }
 
-/// 简单的时间戳（不引入 chrono 依赖）
+/// 可读的本地时间戳（通过 Windows API，不引入 chrono 依赖）
 fn chrono_now() -> String {
-    use std::time::SystemTime;
-    let duration = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap_or_default();
-    format!("{}", duration.as_secs())
+    use windows_sys::Win32::System::SystemInformation::GetLocalTime;
+
+    let mut st = windows_sys::Win32::Foundation::SYSTEMTIME {
+        wYear: 0, wMonth: 0, wDayOfWeek: 0, wDay: 0,
+        wHour: 0, wMinute: 0, wSecond: 0, wMilliseconds: 0,
+    };
+    unsafe { GetLocalTime(&mut st) };
+    format!(
+        "{:04}-{:02}-{:02} {:02}:{:02}:{:02}",
+        st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond
+    )
 }

@@ -78,7 +78,6 @@ impl EnvManager {
 
     /// 广播 WM_SETTINGCHANGE，通知系统环境变量已更新
     pub fn broadcast_change() {
-        use windows_sys::Win32::Foundation::*;
         use windows_sys::Win32::UI::WindowsAndMessaging::*;
 
         let env_wide: Vec<u16> = OsStr::new("Environment")

@@ -21,6 +21,7 @@ pub fn print_warning(text: &str) {
     println!("  {} {}", style.apply_to("⚠"), text);
 }
 
+#[allow(dead_code)]
 pub fn print_error(text: &str) {
     let style = Style::new().red();
     println!("  {} {}", style.apply_to("✗"), text);

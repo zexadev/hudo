@@ -61,6 +61,7 @@ pub async fn download(url: &str, cache_dir: &Path, filename: &str) -> Result<Pat
 }
 
 /// 解压 zip 文件到目标目录
+#[allow(dead_code)]
 pub fn extract_zip(zip_path: &Path, dest_dir: &Path) -> Result<()> {
     std::fs::create_dir_all(dest_dir)
         .with_context(|| format!("无法创建解压目录: {}", dest_dir.display()))?;
