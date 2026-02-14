@@ -1,0 +1,70 @@
+use anyhow::{Context, Result};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::path::Path;
+
+/// 单个工具的安装状态
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ToolState {
+    pub version: String,
+    pub install_path: String,
+    pub installed_at: String,
+}
+
+/// 所有工具的安装状态（保存在 state.json）
+#[derive(Debug, Serialize, Deserialize, Default)]
+pub struct InstallRegistry {
+    pub tools: HashMap<String, ToolState>,
+}
+
+impl InstallRegistry {
+    /// 从 state.json 加载
+    pub fn load(state_path: &Path) -> Result<Self> {
+        if !state_path.exists() {
+            return Ok(Self::default());
+        }
+        let content = std::fs::read_to_string(state_path)
+            .with_context(|| format!("无法读取状态文件: {}", state_path.display()))?;
+        let registry: InstallRegistry = serde_json::from_str(&content)
+            .with_context(|| format!("状态文件格式错误: {}", state_path.display()))?;
+        Ok(registry)
+    }
+
+    /// 保存到 state.json
+    pub fn save(&self, state_path: &Path) -> Result<()> {
+        if let Some(parent) = state_path.parent() {
+            std::fs::create_dir_all(parent).ok();
+        }
+        let content = serde_json::to_string_pretty(self).context("序列化状态失败")?;
+        std::fs::write(state_path, content)
+            .with_context(|| format!("无法写入状态文件: {}", state_path.display()))?;
+        Ok(())
+    }
+
+    /// 记录工具安装状态
+    pub fn mark_installed(&mut self, tool_id: &str, version: &str, install_path: &str) {
+        let now = chrono_now();
+        self.tools.insert(
+            tool_id.to_string(),
+            ToolState {
+                version: version.to_string(),
+                install_path: install_path.to_string(),
+                installed_at: now,
+            },
+        );
+    }
+
+    /// 查询工具是否已安装
+    pub fn get(&self, tool_id: &str) -> Option<&ToolState> {
+        self.tools.get(tool_id)
+    }
+}
+
+/// 简单的时间戳（不引入 chrono 依赖）
+fn chrono_now() -> String {
+    use std::time::SystemTime;
+    let duration = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap_or_default();
+    format!("{}", duration.as_secs())
+}
