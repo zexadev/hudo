@@ -75,13 +75,16 @@ async fn cmd_setup(config: &HudoConfig) -> Result<()> {
     let installers = all_installers();
     let ctx = InstallContext { config };
 
-    // 检测各工具当前状态，构建选项列表
+    // 检测各工具当前状态（只调一次），构建选项列表
     let mut labels = Vec::new();
     let mut defaults = Vec::new();
 
     for inst in &installers {
         let info = inst.info();
-        let status = match inst.detect_installed(&ctx).await {
+        let detect = inst.detect_installed(&ctx).await;
+        let is_not_installed = matches!(&detect, Ok(DetectResult::NotInstalled));
+
+        let status = match detect {
             Ok(DetectResult::InstalledByHudo(ver)) => {
                 format!(" {}", console::style(format!("[已安装 {}]", ver)).green())
             }
@@ -93,12 +96,7 @@ async fn cmd_setup(config: &HudoConfig) -> Result<()> {
         };
 
         labels.push(format!("{:<8} — {}{}", info.name, info.description, status));
-
-        // 默认勾选未安装的工具
-        defaults.push(matches!(
-            inst.detect_installed(&ctx).await,
-            Ok(DetectResult::NotInstalled)
-        ));
+        defaults.push(is_not_installed);
     }
 
     let selections = MultiSelect::with_theme(&ColorfulTheme::default())
