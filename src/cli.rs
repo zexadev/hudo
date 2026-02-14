@@ -1,4 +1,4 @@
-use clap::{Parser, Subcommand, ValueEnum};
+use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
 #[command(name = "hudo", version, about = "混沌 - 开发环境一键引导工具")]
@@ -13,8 +13,8 @@ pub enum Commands {
     Setup,
     /// 安装单个工具
     Install {
-        /// 要安装的工具名称
-        tool: ToolName,
+        /// 要安装的工具名称（如 git, uv, fnm, rustup, go, java, vscode, pycharm）
+        tool: String,
     },
     /// 列出所有工具及安装状态
     List,
@@ -40,17 +40,4 @@ pub enum ConfigAction {
     Edit,
     /// 重置配置为默认值
     Reset,
-}
-
-#[derive(Debug, Clone, ValueEnum)]
-pub enum ToolName {
-    Git,
-    Uv,
-    Python,
-    Nodejs,
-    Rust,
-    Go,
-    Java,
-    Vscode,
-    Pycharm,
 }

@@ -8,7 +8,7 @@ mod ui;
 
 use anyhow::{Context, Result};
 use clap::Parser;
-use cli::{Cli, Commands, ConfigAction, ToolName};
+use cli::{Cli, Commands, ConfigAction};
 use config::HudoConfig;
 use dialoguer::{Select, theme::ColorfulTheme};
 use dialoguer::Confirm;
@@ -69,30 +69,21 @@ fn ensure_config() -> Result<HudoConfig> {
     Ok(config)
 }
 
-/// 根据 ToolName 找到对应的安装器 id
-fn tool_name_to_id(tool: &ToolName) -> &'static str {
-    match tool {
-        ToolName::Git => "git",
-        ToolName::Uv => "uv",
-        ToolName::Python => "python",
-        ToolName::Nodejs => "nodejs",
-        ToolName::Rust => "rust",
-        ToolName::Go => "go",
-        ToolName::Java => "java",
-        ToolName::Vscode => "vscode",
-        ToolName::Pycharm => "pycharm",
-    }
-}
-
 /// 安装单个工具
-async fn cmd_install(config: &HudoConfig, tool: &ToolName) -> Result<()> {
-    let tool_id = tool_name_to_id(tool);
+async fn cmd_install(config: &HudoConfig, tool_id: &str) -> Result<()> {
     let installers = all_installers();
 
+    let available: Vec<_> = installers.iter().map(|i| i.info().id).collect();
     let inst = installers
         .iter()
         .find(|i| i.info().id == tool_id)
-        .ok_or_else(|| anyhow::anyhow!("安装器 '{}' 尚未实现", tool_id))?;
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "未知工具 '{}'，可用: {}",
+                tool_id,
+                available.join(", ")
+            )
+        })?;
 
     let info = inst.info();
     ui::print_title(&format!("安装 {}", info.name));
@@ -110,7 +101,7 @@ async fn cmd_install(config: &HudoConfig, tool: &ToolName) -> Result<()> {
         DetectResult::InstalledExternal(version) => {
             ui::print_warning(&format!("{} 已安装在系统其他位置: {}", info.name, version));
             let reinstall = Confirm::new()
-                .with_prompt("  是否卸载旧版并重装到 hudo 目录？")
+                .with_prompt("  是否由 hudo 接管？（将清理旧版并重新安装到 hudo 目录）")
                 .default(false)
                 .interact()
                 .context("选择被取消")?;
@@ -339,7 +330,7 @@ async fn main() -> Result<()> {
         }
         Commands::Install { tool } => {
             let config = ensure_config()?;
-            cmd_install(&config, &tool).await?;
+            cmd_install(&config, &tool.to_lowercase()).await?;
         }
         Commands::List => {
             let config = ensure_config()?;
