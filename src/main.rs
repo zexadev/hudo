@@ -73,6 +73,7 @@ fn ensure_config() -> Result<HudoConfig> {
 fn tool_name_to_id(tool: &ToolName) -> &'static str {
     match tool {
         ToolName::Git => "git",
+        ToolName::Uv => "uv",
         ToolName::Python => "python",
         ToolName::Nodejs => "nodejs",
         ToolName::Rust => "rust",
@@ -163,35 +164,35 @@ async fn cmd_install(config: &HudoConfig, tool: &ToolName) -> Result<()> {
     Ok(())
 }
 
-/// 通过注册表查找并运行系统卸载程序
+/// 卸载系统中已有的工具
 fn uninstall_from_system(tool_id: &str) -> Result<()> {
-    let uninstall_key = match tool_id {
-        "git" => "Git_is1",
+    match tool_id {
+        "git" => uninstall_via_registry("Git_is1"),
+        "uv" => uninstall_uv(),
         _ => anyhow::bail!("不支持自动卸载: {}", tool_id),
-    };
+    }
+}
 
-    let hkcu = winreg::RegKey::predef(winreg::enums::HKEY_LOCAL_MACHINE);
+/// 通过注册表查找并运行系统卸载程序（如 Git）
+fn uninstall_via_registry(uninstall_key: &str) -> Result<()> {
+    let hklm = winreg::RegKey::predef(winreg::enums::HKEY_LOCAL_MACHINE);
     let path = format!(
         "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{}",
         uninstall_key
     );
 
-    // 先尝试 HKLM，再尝试 HKCU
-    let uninstall_string: String = hkcu
+    let uninstall_string: String = hklm
         .open_subkey(&path)
         .and_then(|key| key.get_value("UninstallString"))
         .or_else(|_| {
-            let hkcu2 = winreg::RegKey::predef(winreg::enums::HKEY_CURRENT_USER);
-            hkcu2
-                .open_subkey(&path)
+            let hkcu = winreg::RegKey::predef(winreg::enums::HKEY_CURRENT_USER);
+            hkcu.open_subkey(&path)
                 .and_then(|key| key.get_value("UninstallString"))
         })
         .context("未找到卸载程序，请手动卸载后重试")?;
 
-    // 去掉注册表值中的引号
     let uninstall_string = uninstall_string.trim_matches('"').to_string();
 
-    // 运行卸载程序（静默模式）
     let status = std::process::Command::new(&uninstall_string)
         .args(["/VERYSILENT", "/NORESTART"])
         .status()
@@ -202,6 +203,56 @@ fn uninstall_from_system(tool_id: &str) -> Result<()> {
     }
 
     ui::print_success("旧版已卸载");
+    Ok(())
+}
+
+/// 卸载系统中已有的 uv（绿色安装，无注册表卸载器）
+fn uninstall_uv() -> Result<()> {
+    // 找到旧 uv 的位置
+    let output = std::process::Command::new("where")
+        .arg("uv")
+        .output()
+        .context("查找 uv 位置失败")?;
+
+    if !output.status.success() {
+        ui::print_warning("未找到旧版 uv，跳过卸载");
+        return Ok(());
+    }
+
+    let uv_path = String::from_utf8_lossy(&output.stdout);
+    let uv_path = uv_path.lines().next().unwrap_or("").trim();
+    let old_dir = std::path::Path::new(uv_path)
+        .parent()
+        .context("无法确定 uv 所在目录")?;
+
+    // 1. 清理缓存
+    ui::print_info("清理 uv 缓存...");
+    std::process::Command::new(uv_path)
+        .args(["cache", "clean"])
+        .status()
+        .ok();
+
+    // 2. 删除旧二进制文件
+    for bin in &["uv.exe", "uvx.exe", "uvw.exe"] {
+        let p = old_dir.join(bin);
+        if p.exists() {
+            std::fs::remove_file(&p).ok();
+        }
+    }
+
+    // 3. 从 PATH 移除旧目录
+    env::EnvManager::remove_from_path(&old_dir.to_string_lossy())?;
+
+    // 4. 清理 receipt 文件
+    if let Ok(local) = std::env::var("LOCALAPPDATA") {
+        let receipt = std::path::Path::new(&local).join("uv").join("uv-receipt.json");
+        if receipt.exists() {
+            std::fs::remove_file(&receipt).ok();
+        }
+    }
+
+    env::EnvManager::broadcast_change();
+    ui::print_success("旧版 uv 已清理");
     Ok(())
 }
 

@@ -62,6 +62,20 @@ impl EnvManager {
         Ok(())
     }
 
+    /// 从 PATH 中移除指定路径（大小写不敏感）
+    pub fn remove_from_path(target: &str) -> Result<()> {
+        let current = Self::get_var("Path")?.unwrap_or_default();
+        let new_parts: Vec<&str> = current
+            .split(';')
+            .filter(|s| !s.is_empty() && !s.eq_ignore_ascii_case(target))
+            .collect();
+        let new_value = new_parts.join(";");
+        if new_value != current {
+            Self::set_var("Path", &new_value)?;
+        }
+        Ok(())
+    }
+
     /// 广播 WM_SETTINGCHANGE，通知系统环境变量已更新
     pub fn broadcast_change() {
         use windows_sys::Win32::Foundation::*;

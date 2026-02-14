@@ -1,4 +1,5 @@
 pub mod git;
+pub mod uv;
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -79,5 +80,6 @@ pub trait Installer: Send + Sync {
 pub fn all_installers() -> Vec<Box<dyn Installer>> {
     vec![
         Box::new(git::GitInstaller),
+        Box::new(uv::UvInstaller),
     ]
 }

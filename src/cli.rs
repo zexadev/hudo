@@ -45,6 +45,7 @@ pub enum ConfigAction {
 #[derive(Debug, Clone, ValueEnum)]
 pub enum ToolName {
     Git,
+    Uv,
     Python,
     Nodejs,
     Rust,
