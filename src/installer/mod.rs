@@ -1,5 +1,16 @@
+pub mod bun;
 pub mod git;
+pub mod go;
+pub mod jdk;
+pub mod miniconda;
+pub mod mingw;
+pub mod mysql;
+pub mod nodejs;
+pub mod pgsql;
+pub mod pycharm;
+pub mod rustup;
 pub mod uv;
+pub mod vscode;
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -79,7 +90,22 @@ pub trait Installer: Send + Sync {
 /// 返回所有可用的安装器
 pub fn all_installers() -> Vec<Box<dyn Installer>> {
     vec![
+        // 工具
         Box::new(git::GitInstaller),
-        Box::new(uv::UvInstaller),
+        // 语言环境 — 按语言分组
+        Box::new(uv::UvInstaller),           // Python
+        Box::new(miniconda::MinicondaInstaller), // Python
+        Box::new(nodejs::NodejsInstaller),   // JavaScript
+        Box::new(bun::BunInstaller),         // JavaScript
+        Box::new(rustup::RustupInstaller),   // Rust
+        Box::new(go::GoInstaller),           // Go
+        Box::new(jdk::JdkInstaller),         // Java
+        Box::new(mingw::MingwInstaller),     // C/C++
+        // 数据库
+        Box::new(mysql::MysqlInstaller),
+        Box::new(pgsql::PgsqlInstaller),
+        // 编辑器 / IDE
+        Box::new(vscode::VscodeInstaller),
+        Box::new(pycharm::PycharmInstaller),
     ]
 }

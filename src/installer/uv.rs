@@ -41,11 +41,11 @@ impl Installer for UvInstaller {
         Ok(DetectResult::NotInstalled)
     }
 
-    fn resolve_download(&self, _config: &HudoConfig) -> (String, String) {
-        (
-            "https://astral.sh/uv/install.ps1".to_string(),
-            "uv-installer.ps1".to_string(),
-        )
+    fn resolve_download(&self, config: &HudoConfig) -> (String, String) {
+        let url = config.mirrors.uv.as_deref()
+            .unwrap_or("https://astral.sh/uv/install.ps1")
+            .to_string();
+        (url, "uv-installer.ps1".to_string())
     }
 
     async fn install(&self, ctx: &InstallContext<'_>) -> Result<InstallResult> {
@@ -63,7 +63,7 @@ impl Installer for UvInstaller {
         let ps1_path = download::download(&url, &config.cache_dir(), &filename).await?;
 
         // 用 PowerShell 执行官方安装脚本
-        println!("  正在安装 uv...");
+        crate::ui::print_action("安装 uv...");
         let status = std::process::Command::new("powershell")
             .args([
                 "-ExecutionPolicy",
