@@ -61,7 +61,7 @@ impl Installer for GitInstaller {
         let exe_path = download::download(&url, &config.cache_dir(), &filename).await?;
 
         // 静默安装到指定目录
-        println!("  正在安装 Git（静默模式）...");
+        crate::ui::print_action("安装 Git（静默模式）...");
         download::run_installer(
             &exe_path,
             &[
@@ -95,8 +95,8 @@ impl Installer for GitInstaller {
         let current_name = git_config_get(&git, "user.name");
         let current_email = git_config_get(&git, "user.email");
 
-        println!("  Git 需要知道你的身份信息，用于标记每次提交（commit）的作者。");
-        println!("  这不是登录账号，只是显示在代码历史中的名字和邮箱。");
+        ui::print_info("Git 需要你的身份信息，用于标记 commit 的作者");
+        ui::print_info("这不是登录账号，只是显示在代码历史中的名字和邮箱");
         println!();
 
         // user.name

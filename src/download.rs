@@ -10,14 +10,14 @@ pub async fn download(url: &str, cache_dir: &Path, filename: &str) -> Result<Pat
 
     // 缓存命中，跳过下载
     if dest.exists() {
-        println!("  已缓存: {}", filename);
+        println!("  {} 使用缓存: {}", console::style("↓").cyan(), filename);
         return Ok(dest);
     }
 
     std::fs::create_dir_all(cache_dir)
         .with_context(|| format!("无法创建缓存目录: {}", cache_dir.display()))?;
 
-    println!("  下载: {}", url);
+    println!("  {} {}", console::style("↓").cyan(), console::style(url).dim());
 
     let client = reqwest::Client::new();
     let resp = client
@@ -33,9 +33,9 @@ pub async fn download(url: &str, cache_dir: &Path, filename: &str) -> Result<Pat
     let pb = ProgressBar::new(total_size);
     pb.set_style(
         ProgressStyle::default_bar()
-            .template("  [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({eta})")
+            .template("  {bar:40.cyan/blue}  {bytes}/{total_bytes}  {eta}")
             .unwrap()
-            .progress_chars("=> "),
+            .progress_chars("━╸─"),
     );
 
     // 写入临时文件，下载完成后再重命名，避免中断导致损坏
@@ -56,7 +56,7 @@ pub async fn download(url: &str, cache_dir: &Path, filename: &str) -> Result<Pat
     std::fs::rename(&tmp_dest, &dest)
         .with_context(|| format!("重命名临时文件失败: {}", tmp_dest.display()))?;
 
-    println!("  下载完成: {}", filename);
+    println!("  {} {}", console::style("✓").green(), filename);
     Ok(dest)
 }
 
@@ -91,6 +91,20 @@ pub fn extract_zip(zip_path: &Path, dest_dir: &Path) -> Result<()> {
     }
 
     Ok(())
+}
+
+/// 找到目录下唯一的子目录（用于 zip 解压后有一层顶层目录的情况）
+pub fn find_single_subdir(dir: &Path) -> Option<PathBuf> {
+    let entries: Vec<_> = std::fs::read_dir(dir)
+        .ok()?
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false))
+        .collect();
+    if entries.len() == 1 {
+        Some(entries[0].path())
+    } else {
+        None
+    }
 }
 
 /// 运行 exe 安装程序（如 rustup-init.exe）

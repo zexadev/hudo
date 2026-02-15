@@ -4,7 +4,7 @@ use clap::{Parser, Subcommand};
 #[command(name = "hudo", version, about = "混沌 - 开发环境一键引导工具")]
 pub struct Cli {
     #[command(subcommand)]
-    pub command: Commands,
+    pub command: Option<Commands>,
 }
 
 #[derive(Subcommand)]
@@ -13,7 +13,12 @@ pub enum Commands {
     Setup,
     /// 安装单个工具
     Install {
-        /// 要安装的工具名称（如 git, uv, fnm, rustup, go, java, vscode, pycharm）
+        /// 工具名称（git, uv, nodejs, bun, rust, go, jdk, c, miniconda, mysql, pgsql, vscode, pycharm）
+        tool: String,
+    },
+    /// 卸载由 hudo 安装的工具
+    Uninstall {
+        /// 工具名称
         tool: String,
     },
     /// 列出所有工具及安装状态
