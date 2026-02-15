@@ -59,6 +59,11 @@ impl InstallRegistry {
     pub fn get(&self, tool_id: &str) -> Option<&ToolState> {
         self.tools.get(tool_id)
     }
+
+    /// 移除工具安装记录
+    pub fn remove(&mut self, tool_id: &str) {
+        self.tools.remove(tool_id);
+    }
 }
 
 /// 可读的本地时间戳（通过 Windows API，不引入 chrono 依赖）

@@ -62,6 +62,19 @@ impl EnvManager {
         Ok(())
     }
 
+    /// 删除用户环境变量
+    pub fn delete_var(name: &str) -> Result<()> {
+        let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+        let env = hkcu
+            .open_subkey_with_flags(ENV_KEY, KEY_SET_VALUE)
+            .context("无法打开注册表 HKCU\\Environment（写入）")?;
+        match env.delete_value(name) {
+            Ok(()) => Ok(()),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(e) => Err(e).with_context(|| format!("删除环境变量 {} 失败", name)),
+        }
+    }
+
     /// 从 PATH 中移除指定路径（大小写不敏感）
     pub fn remove_from_path(target: &str) -> Result<()> {
         let current = Self::get_var("Path")?.unwrap_or_default();
