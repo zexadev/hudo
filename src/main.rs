@@ -154,11 +154,10 @@ async fn setup_category(
         let inst = &installers[idx];
         let info = inst.info();
         let detect = inst.detect_installed(&ctx).await;
-        let is_not_installed = matches!(&detect, Ok(DetectResult::NotInstalled));
 
         name_width = name_width.max(console::measure_text_width(info.name));
         desc_width = desc_width.max(console::measure_text_width(info.description));
-        tool_data.push((info, detect, is_not_installed));
+        tool_data.push((info, detect));
     }
 
     // 加 2 列间距
@@ -169,7 +168,7 @@ async fn setup_category(
     let mut labels = Vec::new();
     let mut defaults = Vec::new();
 
-    for (info, detect, is_not_installed) in &tool_data {
+    for (info, detect) in &tool_data {
         let status = match detect {
             Ok(DetectResult::InstalledByHudo(ver)) => {
                 let short = truncate_version(ver, 16);
@@ -189,7 +188,7 @@ async fn setup_category(
             ui::pad(info.description, desc_width),
             status
         ));
-        defaults.push(*is_not_installed);
+        defaults.push(false);
     }
 
     println!("  {}", console::style("空格勾选/取消，回车确认，Esc 返回").dim());
@@ -767,8 +766,8 @@ fn uninstall_vscode() -> Result<()> {
 }
 
 /// 列出所有工具状态
-async fn cmd_list(config: &HudoConfig) -> Result<()> {
-    ui::print_title("开发工具状态");
+async fn cmd_list(config: &HudoConfig, show_all: bool) -> Result<()> {
+    ui::print_title(if show_all { "所有可用工具" } else { "已安装工具" });
 
     let installers = all_installers();
     let ctx = InstallContext { config };
@@ -782,35 +781,57 @@ async fn cmd_list(config: &HudoConfig) -> Result<()> {
         ui::ToolCategory::Ide,
     ];
 
-    let mut name_width = 0usize;
-    let mut desc_width = 0usize;
+    // 先收集所有工具的检测结果
+    let mut all_results = Vec::new();
     for inst in &installers {
         let info = inst.info();
-        name_width = name_width.max(console::measure_text_width(info.name));
-        desc_width = desc_width.max(console::measure_text_width(info.description));
+        let detect = inst.detect_installed(&ctx).await;
+        all_results.push((info, detect));
+    }
+
+    // 计算已安装工具的动态列宽（仅基于要显示的工具）
+    let mut name_width = 0usize;
+    let mut desc_width = 0usize;
+    for (info, detect) in &all_results {
+        let is_installed = matches!(detect, Ok(DetectResult::InstalledByHudo(_)) | Ok(DetectResult::InstalledExternal(_)));
+        if show_all || is_installed {
+            name_width = name_width.max(console::measure_text_width(info.name));
+            desc_width = desc_width.max(console::measure_text_width(info.description));
+        }
     }
     name_width += 2;
     desc_width += 2;
 
     let mut hudo_count = 0u32;
     let mut external_count = 0u32;
+    let mut any_displayed = false;
 
     for cat in &categories {
-        let cat_tools: Vec<_> = installers
+        // 筛选该分类下要显示的工具
+        let cat_entries: Vec<_> = all_results
             .iter()
-            .filter(|i| {
-                std::mem::discriminant(&ui::ToolCategory::from_id(i.info().id))
-                    == std::mem::discriminant(cat)
+            .filter(|(info, detect)| {
+                let in_cat = std::mem::discriminant(&ui::ToolCategory::from_id(info.id))
+                    == std::mem::discriminant(cat);
+                if !in_cat {
+                    return false;
+                }
+                if show_all {
+                    return true;
+                }
+                matches!(detect, Ok(DetectResult::InstalledByHudo(_)) | Ok(DetectResult::InstalledExternal(_)))
             })
             .collect();
-        if cat_tools.is_empty() {
+
+        if cat_entries.is_empty() {
             continue;
         }
 
         ui::print_section(cat.label());
-        for inst in &cat_tools {
-            let info = inst.info();
-            let status = match inst.detect_installed(&ctx).await {
+        any_displayed = true;
+
+        for (info, detect) in &cat_entries {
+            let status = match detect {
                 Ok(DetectResult::InstalledByHudo(ver)) => {
                     hudo_count += 1;
                     let extra = reg
@@ -843,6 +864,10 @@ async fn cmd_list(config: &HudoConfig) -> Result<()> {
         }
     }
 
+    if !any_displayed {
+        ui::print_info("尚未安装任何工具，运行 hudo setup 开始安装");
+    }
+
     println!();
     let total = hudo_count + external_count;
     if total > 0 {
@@ -850,6 +875,9 @@ async fn cmd_list(config: &HudoConfig) -> Result<()> {
             "共 {} 个工具已安装 (hudo: {}, 系统: {})",
             total, hudo_count, external_count
         ));
+    }
+    if !show_all && total > 0 {
+        ui::print_info("使用 hudo list --all 查看所有可用工具");
     }
     ui::print_info(&format!("安装根目录: {}", config.root_dir));
     Ok(())
@@ -958,7 +986,7 @@ async fn interactive_menu(config: &HudoConfig) -> Result<()> {
 
         match selection {
             Some(0) => { cmd_setup(config).await?; }
-            Some(1) => { cmd_list(config).await?; ui::wait_for_key(); }
+            Some(1) => { cmd_list(config, false).await?; ui::wait_for_key(); }
             Some(2) => { interactive_uninstall(config).await?; }
             Some(3) => { interactive_config(config).await?; }
             Some(4) | None => break,
@@ -1100,9 +1128,9 @@ async fn main() -> Result<()> {
                 let config = ensure_config()?;
                 cmd_uninstall(&config, &tool.to_lowercase()).await?;
             }
-            Commands::List => {
+            Commands::List { all } => {
                 let config = ensure_config()?;
-                cmd_list(&config).await?;
+                cmd_list(&config, all).await?;
             }
             Commands::Config { action } => match action {
                 ConfigAction::Show => {

@@ -22,7 +22,11 @@ pub enum Commands {
         tool: String,
     },
     /// 列出所有工具及安装状态
-    List,
+    List {
+        /// 显示所有工具（含未安装）
+        #[arg(long)]
+        all: bool,
+    },
     /// 配置管理
     Config {
         #[command(subcommand)]
