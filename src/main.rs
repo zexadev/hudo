@@ -3,6 +3,7 @@ mod config;
 mod download;
 mod env;
 mod installer;
+mod profile;
 mod registry;
 mod ui;
 
@@ -283,6 +284,11 @@ async fn setup_category(
 
 /// 安装单个工具
 async fn cmd_install(config: &HudoConfig, tool_id: &str) -> Result<()> {
+    cmd_install_inner(config, tool_id, false).await
+}
+
+/// 安装单个工具（内部实现，skip_configure 控制是否跳过交互式配置）
+async fn cmd_install_inner(config: &HudoConfig, tool_id: &str, skip_configure: bool) -> Result<()> {
     let installers = all_installers();
 
     let available: Vec<_> = installers.iter().map(|i| i.info().id).collect();
@@ -307,7 +313,9 @@ async fn cmd_install(config: &HudoConfig, tool_id: &str) -> Result<()> {
     match &detect {
         DetectResult::InstalledByHudo(version) => {
             ui::print_success(&format!("{} 已安装 (hudo): {}", info.name, version));
-            inst.configure(&ctx).await?;
+            if !skip_configure {
+                inst.configure(&ctx).await?;
+            }
             return Ok(());
         }
         DetectResult::InstalledExternal(version) => {
@@ -319,7 +327,9 @@ async fn cmd_install(config: &HudoConfig, tool_id: &str) -> Result<()> {
                 .context("选择被取消")?;
             if !reinstall {
                 ui::print_info("跳过安装，使用现有版本");
-                inst.configure(&ctx).await?;
+                if !skip_configure {
+                    inst.configure(&ctx).await?;
+                }
                 return Ok(());
             }
             ui::print_step(1, 2, "卸载旧版...");
@@ -355,7 +365,9 @@ async fn cmd_install(config: &HudoConfig, tool_id: &str) -> Result<()> {
     }
 
     // 交互式配置
-    inst.configure(&ctx).await?;
+    if !skip_configure {
+        inst.configure(&ctx).await?;
+    }
 
     // 保存安装状态
     let mut reg = registry::InstallRegistry::load(&config.state_path())?;
@@ -765,6 +777,234 @@ fn uninstall_vscode() -> Result<()> {
     uninstall_green(&["code"], &[])
 }
 
+/// 导出 profile
+async fn cmd_export(config: &HudoConfig, file: Option<String>) -> Result<()> {
+    let output_path = file.unwrap_or_else(|| "hudo-profile.toml".to_string());
+    let output_path = std::path::Path::new(&output_path);
+
+    ui::print_title("导出环境档案");
+
+    let installers = all_installers();
+    let profile = profile::HudoProfile::build_from_current(config, &installers).await?;
+
+    if profile.tools.is_empty() {
+        ui::print_warning("未检测到任何已安装工具，无需导出");
+        return Ok(());
+    }
+
+    // 展示摘要
+    ui::print_info(&format!("检测到 {} 个已安装工具:", profile.tools.len()));
+    for (id, ver) in &profile.tools {
+        println!(
+            "    {}  {}",
+            console::style(ui::pad(id, 14)).bold(),
+            console::style(ver).dim()
+        );
+    }
+    if !profile.tool_config.is_empty() {
+        println!();
+        ui::print_info(&format!("包含 {} 个工具的配置", profile.tool_config.len()));
+    }
+
+    println!();
+    let confirm = Confirm::new()
+        .with_prompt(format!("  导出到 {} ?", output_path.display()))
+        .default(true)
+        .interact_opt()
+        .context("确认被取消")?;
+
+    if confirm != Some(true) {
+        ui::print_info("已取消");
+        return Ok(());
+    }
+
+    profile.save_to_file(output_path)?;
+    ui::print_success(&format!("环境档案已导出到 {}", output_path.display()));
+
+    Ok(())
+}
+
+/// 导入 profile 并安装工具
+async fn cmd_import(config: &mut HudoConfig, file: &str) -> Result<()> {
+    let file_path = std::path::Path::new(file);
+    if !file_path.exists() {
+        anyhow::bail!("文件不存在: {}", file);
+    }
+
+    ui::print_title("导入环境档案");
+
+    let prof = profile::HudoProfile::load_from_file(file_path)?;
+    ui::print_info(&format!(
+        "档案版本: {}  导出时间: {}",
+        prof.hudo.version, prof.hudo.exported_at
+    ));
+
+    // 应用 settings
+    let mut settings_changed = false;
+    if let Some(ref jv) = prof.settings.java_version {
+        if config.java.version != *jv {
+            config.java.version = jv.clone();
+            ui::print_info(&format!("java.version = {}", jv));
+            settings_changed = true;
+        }
+    }
+    if let Some(ref gv) = prof.settings.go_version {
+        if config.go.version != *gv {
+            config.go.version = gv.clone();
+            ui::print_info(&format!("go.version = {}", gv));
+            settings_changed = true;
+        }
+    }
+    // 应用 mirrors
+    for (key, value) in &prof.settings.mirrors {
+        match key.as_str() {
+            "uv" => config.mirrors.uv = Some(value.clone()),
+            "fnm" => config.mirrors.fnm = Some(value.clone()),
+            "go" => config.mirrors.go = Some(value.clone()),
+            "java" => config.mirrors.java = Some(value.clone()),
+            "vscode" => config.mirrors.vscode = Some(value.clone()),
+            "pycharm" => config.mirrors.pycharm = Some(value.clone()),
+            _ => {}
+        }
+        ui::print_info(&format!("mirrors.{} = {}", key, value));
+        settings_changed = true;
+    }
+    if settings_changed {
+        config.save()?;
+        ui::print_success("配置已更新");
+        println!();
+    }
+
+    if prof.tools.is_empty() {
+        ui::print_info("档案中没有工具需要安装");
+        return Ok(());
+    }
+
+    // 检测已安装工具，筛选出需要安装的
+    let installers = all_installers();
+    let ctx = InstallContext { config };
+    let mut to_install = Vec::new();
+
+    for (tool_id, _ver) in &prof.tools {
+        if let Some(inst) = installers.iter().find(|i| i.info().id == tool_id.as_str()) {
+            match inst.detect_installed(&ctx).await {
+                Ok(DetectResult::InstalledByHudo(ver)) => {
+                    ui::print_info(&format!(
+                        "{} 已安装 (hudo): {} — 跳过",
+                        inst.info().name,
+                        ver
+                    ));
+                }
+                Ok(DetectResult::InstalledExternal(ver)) => {
+                    ui::print_info(&format!(
+                        "{} 已安装 (系统): {} — 跳过",
+                        inst.info().name,
+                        ver
+                    ));
+                }
+                _ => {
+                    to_install.push(inst.info());
+                }
+            }
+        }
+    }
+
+    if to_install.is_empty() {
+        ui::print_success("所有工具已安装，无需操作");
+    } else {
+        println!();
+        ui::print_info(&format!("需要安装 {} 个工具:", to_install.len()));
+        for info in &to_install {
+            println!("    {}  {}", console::style(info.name).bold(), info.description);
+        }
+
+        println!();
+        let confirm = Confirm::new()
+            .with_prompt("  确认开始安装？")
+            .default(true)
+            .interact_opt()
+            .context("确认被取消")?;
+
+        if confirm != Some(true) {
+            ui::print_info("已取消");
+            return Ok(());
+        }
+
+        // 批量安装（skip_configure=true）
+        let total = to_install.len();
+        let mut success_count = 0u32;
+        let mut fail_names = Vec::new();
+
+        for (idx, info) in to_install.iter().enumerate() {
+            println!();
+            ui::print_step(
+                (idx + 1) as u32,
+                total as u32,
+                &format!("安装 {}", info.name),
+            );
+            if let Err(e) = cmd_install_inner(config, info.id, true).await {
+                ui::print_error(&format!("{} 安装失败: {}", info.name, e));
+                fail_names.push(info.name);
+                let cont = Confirm::new()
+                    .with_prompt("  是否继续安装其余工具？")
+                    .default(true)
+                    .interact()
+                    .unwrap_or(false);
+                if !cont {
+                    anyhow::bail!("用户中止安装");
+                }
+            } else {
+                success_count += 1;
+            }
+        }
+
+        println!();
+        println!("{}", console::style("─".repeat(40)).cyan());
+        if fail_names.is_empty() {
+            ui::print_success(&format!("全部 {} 个工具安装完成", success_count));
+        } else {
+            ui::print_success(&format!("{} 个工具安装成功", success_count));
+            ui::print_warning(&format!(
+                "{} 个工具安装失败: {}",
+                fail_names.len(),
+                fail_names.join(", ")
+            ));
+        }
+    }
+
+    // 应用 tool_config
+    if !prof.tool_config.is_empty() {
+        println!();
+        apply_tool_configs(config, &installers, &prof).await?;
+    }
+
+    ui::print_info("请打开新终端以使环境变量生效");
+    Ok(())
+}
+
+/// 遍历 profile 中的 tool_config，调用各安装器的 import_config
+async fn apply_tool_configs(
+    config: &HudoConfig,
+    installers: &[Box<dyn installer::Installer>],
+    prof: &profile::HudoProfile,
+) -> Result<()> {
+    let ctx = InstallContext { config };
+    for (tool_id, entries) in &prof.tool_config {
+        if let Some(inst) = installers.iter().find(|i| i.info().id == tool_id.as_str()) {
+            let pairs: Vec<(String, String)> = entries
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect();
+            if !pairs.is_empty() {
+                ui::print_info(&format!("应用 {} 配置...", inst.info().name));
+                inst.import_config(&ctx, &pairs).await?;
+            }
+        }
+    }
+    ui::print_success("工具配置已应用");
+    Ok(())
+}
+
 /// 列出所有工具状态
 async fn cmd_list(config: &HudoConfig, show_all: bool) -> Result<()> {
     ui::print_title(if show_all { "所有可用工具" } else { "已安装工具" });
@@ -973,6 +1213,7 @@ async fn interactive_menu(config: &HudoConfig) -> Result<()> {
             "📦  安装工具",
             "📋  查看已安装",
             "🗑   卸载工具",
+            "📁  环境档案",
             "⚙   配置",
             "🚪  退出",
         ];
@@ -988,8 +1229,9 @@ async fn interactive_menu(config: &HudoConfig) -> Result<()> {
             Some(0) => { cmd_setup(config).await?; }
             Some(1) => { cmd_list(config, false).await?; ui::wait_for_key(); }
             Some(2) => { interactive_uninstall(config).await?; }
-            Some(3) => { interactive_config(config).await?; }
-            Some(4) | None => break,
+            Some(3) => { interactive_profile(config).await?; }
+            Some(4) => { interactive_config(config).await?; }
+            Some(5) | None => break,
             _ => unreachable!(),
         }
     }
@@ -1043,6 +1285,42 @@ async fn interactive_uninstall(config: &HudoConfig) -> Result<()> {
             ui::wait_for_key();
         }
         None => {}
+    }
+
+    Ok(())
+}
+
+/// 交互式环境档案子菜单（导出 / 导入）
+async fn interactive_profile(config: &HudoConfig) -> Result<()> {
+    loop {
+        ui::page_header("环境档案");
+
+        let menu_items = &[
+            "📤  导出环境档案",
+            "📥  导入环境档案",
+            "↩   返回",
+        ];
+
+        let selection = Select::with_theme(&ColorfulTheme::default())
+            .with_prompt("环境档案 (Esc 返回)")
+            .items(menu_items)
+            .default(0)
+            .interact_opt()
+            .context("选择被取消")?;
+
+        match selection {
+            Some(0) => {
+                cmd_export(config, None).await?;
+                ui::wait_for_key();
+            }
+            Some(1) => {
+                let mut config = config.clone();
+                cmd_import(&mut config, "hudo-profile.toml").await?;
+                ui::wait_for_key();
+            }
+            Some(2) | None => break,
+            _ => unreachable!(),
+        }
     }
 
     Ok(())
@@ -1127,6 +1405,14 @@ async fn main() -> Result<()> {
             Commands::Uninstall { tool } => {
                 let config = ensure_config()?;
                 cmd_uninstall(&config, &tool.to_lowercase()).await?;
+            }
+            Commands::Export { file } => {
+                let config = ensure_config()?;
+                cmd_export(&config, file).await?;
+            }
+            Commands::Import { file } => {
+                let mut config = ensure_config()?;
+                cmd_import(&mut config, &file).await?;
             }
             Commands::List { all } => {
                 let config = ensure_config()?;

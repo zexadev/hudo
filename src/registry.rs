@@ -43,7 +43,7 @@ impl InstallRegistry {
 
     /// 记录工具安装状态
     pub fn mark_installed(&mut self, tool_id: &str, version: &str, install_path: &str) {
-        let now = chrono_now();
+        let now = current_timestamp();
         self.tools.insert(
             tool_id.to_string(),
             ToolState {
@@ -67,7 +67,7 @@ impl InstallRegistry {
 }
 
 /// 可读的本地时间戳（通过 Windows API，不引入 chrono 依赖）
-fn chrono_now() -> String {
+pub fn current_timestamp() -> String {
     use windows_sys::Win32::System::SystemInformation::GetLocalTime;
 
     let mut st = windows_sys::Win32::Foundation::SYSTEMTIME {

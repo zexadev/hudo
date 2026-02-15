@@ -1,0 +1,19 @@
+# hudo profile
+[hudo]
+version = "0.1.0"
+exported_at = "2026-02-16 01:47:56"
+
+[settings]
+java_version = "21"
+go_version = "latest"
+
+[tools]
+c = "15.2.0"
+git = "2.47.1.windows.2"
+nodejs = "node v24.13.0"
+rust = "1.92.0"
+uv = "0.10.2"
+
+[tool_config.git]
+user_email = "81049379@qq.com"
+user_name = "jiaxiang"
