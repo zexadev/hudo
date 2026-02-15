@@ -133,6 +133,31 @@ impl Installer for GitInstaller {
 
         Ok(())
     }
+
+    fn export_config(&self, ctx: &InstallContext<'_>) -> Vec<(String, String)> {
+        let git = find_git(ctx.config);
+        let mut entries = Vec::new();
+        if let Some(name) = git_config_get(&git, "user.name") {
+            entries.push(("user_name".to_string(), name));
+        }
+        if let Some(email) = git_config_get(&git, "user.email") {
+            entries.push(("user_email".to_string(), email));
+        }
+        entries
+    }
+
+    async fn import_config(&self, ctx: &InstallContext<'_>, entries: &[(String, String)]) -> Result<()> {
+        let git = find_git(ctx.config);
+        for (key, value) in entries {
+            let git_key = match key.as_str() {
+                "user_name" => "user.name",
+                "user_email" => "user.email",
+                _ => continue,
+            };
+            git_config_set(&git, git_key, value)?;
+        }
+        Ok(())
+    }
 }
 
 /// 找到可用的 git 可执行文件路径（优先 hudo 目录）

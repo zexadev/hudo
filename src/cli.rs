@@ -27,6 +27,16 @@ pub enum Commands {
         #[arg(long)]
         all: bool,
     },
+    /// 导出环境档案（已安装工具 + 配置）
+    Export {
+        /// 输出文件路径（默认 hudo-profile.toml）
+        file: Option<String>,
+    },
+    /// 从环境档案导入并安装工具
+    Import {
+        /// profile 文件路径
+        file: String,
+    },
     /// 配置管理
     Config {
         #[command(subcommand)]

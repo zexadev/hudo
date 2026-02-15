@@ -85,6 +85,16 @@ pub trait Installer: Send + Sync {
     async fn configure(&self, _ctx: &InstallContext<'_>) -> Result<()> {
         Ok(())
     }
+
+    /// 导出工具配置（如 Git 的 user.name/user.email），默认返回空
+    fn export_config(&self, _ctx: &InstallContext<'_>) -> Vec<(String, String)> {
+        vec![]
+    }
+
+    /// 导入工具配置，默认无操作
+    async fn import_config(&self, _ctx: &InstallContext<'_>, _entries: &[(String, String)]) -> Result<()> {
+        Ok(())
+    }
 }
 
 /// 返回所有可用的安装器
