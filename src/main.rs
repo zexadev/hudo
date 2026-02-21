@@ -146,21 +146,19 @@ async fn setup_category(
 ) -> Result<()> {
     ui::page_header(&format!("{} — 选择要安装的工具", cat_name));
 
-    let ctx = InstallContext { config };
+    let reg = registry::InstallRegistry::load(&config.state_path())?;
 
-    // 第一轮：收集检测结果，计算动态列宽
-    let mut tool_data = Vec::new();
+    // 并行检测该分类下所有工具的安装状态
+    let tool_refs: Vec<&dyn installer::Installer> =
+        tool_indices.iter().map(|&i| installers[i].as_ref()).collect();
+    let tool_data = detect_all_parallel(&tool_refs, config, &reg);
+
+    // 计算动态列宽
     let mut name_width = 0usize;
     let mut desc_width = 0usize;
-
-    for &idx in tool_indices {
-        let inst = &installers[idx];
-        let info = inst.info();
-        let detect = inst.detect_installed(&ctx).await;
-
+    for (info, _) in &tool_data {
         name_width = name_width.max(console::measure_text_width(info.name));
         desc_width = desc_width.max(console::measure_text_width(info.description));
-        tool_data.push((info, detect));
     }
 
     // 加 2 列间距
@@ -1007,12 +1005,81 @@ async fn apply_tool_configs(
     Ok(())
 }
 
+/// 快速检测：从 state.json 读取版本，仅做路径存在检查，无需子进程
+fn fast_detect(id: &str, reg: &registry::InstallRegistry) -> Option<DetectResult> {
+    let state = reg.get(id)?;
+    let path = std::path::Path::new(&state.install_path);
+    if path.exists() {
+        Some(DetectResult::InstalledByHudo(state.version.clone()))
+    } else {
+        None
+    }
+}
+
+/// 并行检测工具安装状态：
+/// - hudo 工具：读 state.json，无子进程，近乎瞬间
+/// - 外部工具：并行在独立线程中运行子进程检测
+fn detect_all_parallel(
+    tools: &[&dyn installer::Installer],
+    config: &HudoConfig,
+    reg: &registry::InstallRegistry,
+) -> Vec<(installer::ToolInfo, Result<DetectResult>)> {
+    // 第一步：state.json 快速检测
+    let mut results: Vec<Option<Result<DetectResult>>> = tools
+        .iter()
+        .map(|inst| fast_detect(inst.info().id, reg).map(Ok))
+        .collect();
+
+    // 找出需要子进程检测的工具（不在 state.json 中的）
+    let pending: Vec<usize> = results
+        .iter()
+        .enumerate()
+        .filter_map(|(i, r)| if r.is_none() { Some(i) } else { None })
+        .collect();
+
+    if !pending.is_empty() {
+        // 获取当前 tokio runtime 句柄，供非 tokio 线程使用
+        let handle = tokio::runtime::Handle::current();
+        std::thread::scope(|s| {
+            // 并行启动所有子进程检测
+            let handles: Vec<(usize, _)> = pending
+                .iter()
+                .map(|&i| {
+                    let inst = tools[i];
+                    let handle = handle.clone();
+                    let config = config;
+                    (
+                        i,
+                        s.spawn(move || {
+                            let ctx = InstallContext { config };
+                            handle.block_on(inst.detect_installed(&ctx))
+                        }),
+                    )
+                })
+                .collect();
+
+            // 等待所有线程完成（已并行执行）
+            for (i, h) in handles {
+                results[i] = Some(
+                    h.join()
+                        .unwrap_or_else(|_| Err(anyhow::anyhow!("检测线程崩溃"))),
+                );
+            }
+        });
+    }
+
+    tools
+        .iter()
+        .zip(results.into_iter())
+        .map(|(inst, r)| (inst.info(), r.unwrap_or(Ok(DetectResult::NotInstalled))))
+        .collect()
+}
+
 /// 列出所有工具状态
 async fn cmd_list(config: &HudoConfig, show_all: bool) -> Result<()> {
     ui::print_title(if show_all { "所有可用工具" } else { "已安装工具" });
 
     let installers = all_installers();
-    let ctx = InstallContext { config };
     let reg = registry::InstallRegistry::load(&config.state_path())?;
 
     // 按分类分组
@@ -1023,13 +1090,10 @@ async fn cmd_list(config: &HudoConfig, show_all: bool) -> Result<()> {
         ui::ToolCategory::Ide,
     ];
 
-    // 先收集所有工具的检测结果
-    let mut all_results = Vec::new();
-    for inst in &installers {
-        let info = inst.info();
-        let detect = inst.detect_installed(&ctx).await;
-        all_results.push((info, detect));
-    }
+    // 收集所有工具的检测结果（并行）
+    let tool_refs: Vec<&dyn installer::Installer> =
+        installers.iter().map(|i| i.as_ref()).collect();
+    let all_results = detect_all_parallel(&tool_refs, config, &reg);
 
     // 计算已安装工具的动态列宽（仅基于要显示的工具）
     let mut name_width = 0usize;
@@ -1268,13 +1332,13 @@ async fn interactive_uninstall(config: &HudoConfig) -> Result<()> {
     ui::page_header("卸载工具");
 
     let installers = all_installers();
-    let ctx = InstallContext { config };
+    let reg = registry::InstallRegistry::load(&config.state_path())?;
 
-    // 找出所有由 hudo 安装的工具
+    // 直接从 state.json 读取 hudo 管理的已安装工具，无需子进程检测
     let mut installed = Vec::new();
     for inst in &installers {
         let info = inst.info();
-        if let Ok(DetectResult::InstalledByHudo(ver)) = inst.detect_installed(&ctx).await {
+        if let Some(DetectResult::InstalledByHudo(ver)) = fast_detect(info.id, &reg) {
             installed.push((info.id, info.name, ver));
         }
     }
