@@ -53,7 +53,7 @@ pub async fn go_latest() -> Option<String> {
     Some(ver.strip_prefix("go")?.to_string())
 }
 
-/// PostgreSQL: versions.json → 当前大版本最新
+/// PostgreSQL: versions.json → 当前大版本最新完整版本号（如 "18.2"）
 pub async fn pgsql_latest() -> Option<String> {
     let client = make_client().ok()?;
     let resp: Vec<serde_json::Value> = client
@@ -66,8 +66,11 @@ pub async fn pgsql_latest() -> Option<String> {
         .ok()?;
     resp.iter()
         .find(|v| v["current"].as_bool() == Some(true))
-        .and_then(|v| v["latestMinor"].as_str())
-        .map(|s| s.to_string())
+        .and_then(|v| {
+            let major = v["major"].as_str()?;
+            let minor = v["latestMinor"].as_str()?;
+            Some(format!("{}.{}", major, minor))
+        })
 }
 
 /// Maven: GitHub API → 最新稳定版本号（如 "3.9.9"）
