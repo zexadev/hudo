@@ -45,7 +45,7 @@ impl Installer for GoInstaller {
 
     fn resolve_download(&self, config: &HudoConfig) -> (String, String) {
         let version = match config.go.version.as_str() {
-            "latest" | "" => GO_VERSION_DEFAULT,
+            "" | "latest" => GO_VERSION_DEFAULT,
             v => v,
         };
         let filename = format!("go{}.windows-amd64.zip", version);
@@ -57,7 +57,21 @@ impl Installer for GoInstaller {
     async fn install(&self, ctx: &InstallContext<'_>) -> Result<InstallResult> {
         let config = ctx.config;
         let install_dir = config.lang_dir().join("go");
-        let (url, filename) = self.resolve_download(config);
+
+        // 解析版本: config > API > hardcoded
+        let version = match config.go.version.as_str() {
+            "" | "latest" => {
+                crate::ui::print_action("查询 Go 最新版本...");
+                crate::version::go_latest()
+                    .await
+                    .unwrap_or_else(|| GO_VERSION_DEFAULT.to_string())
+            }
+            v => v.to_string(),
+        };
+
+        let filename = format!("go{}.windows-amd64.zip", version);
+        let base = config.mirrors.go.as_deref().unwrap_or("https://go.dev/dl");
+        let url = format!("{}/{}", base.trim_end_matches('/'), filename);
 
         // 下载 zip
         let zip_path = download::download(&url, &config.cache_dir(), &filename).await?;
@@ -73,16 +87,11 @@ impl Installer for GoInstaller {
         let gopath = config.lang_dir().join("gopath");
         std::fs::create_dir_all(&gopath).ok();
 
-        let version = get_go_version(&install_dir).unwrap_or_else(|| {
-            match config.go.version.as_str() {
-                "latest" | "" => GO_VERSION_DEFAULT,
-                v => v,
-            }.to_string()
-        });
+        let installed_version = get_go_version(&install_dir).unwrap_or(version);
 
         Ok(InstallResult {
             install_path: install_dir,
-            version,
+            version: installed_version,
         })
     }
 

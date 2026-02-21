@@ -8,7 +8,7 @@ use crate::download;
 
 pub struct PgsqlInstaller;
 
-const PG_VERSION: &str = "17.4";
+const PG_VERSION_DEFAULT: &str = "17.4";
 
 #[async_trait]
 impl Installer for PgsqlInstaller {
@@ -41,9 +41,10 @@ impl Installer for PgsqlInstaller {
         Ok(DetectResult::NotInstalled)
     }
 
-    fn resolve_download(&self, _config: &HudoConfig) -> (String, String) {
+    fn resolve_download(&self, config: &HudoConfig) -> (String, String) {
+        let version = config.versions.pgsql.as_deref().unwrap_or(PG_VERSION_DEFAULT);
         // PostgreSQL binaries zip from EDB (official distribution)
-        let filename = format!("postgresql-{}-1-windows-x64-binaries.zip", PG_VERSION);
+        let filename = format!("postgresql-{}-1-windows-x64-binaries.zip", version);
         let url = format!(
             "https://get.enterprisedb.com/postgresql/{}",
             filename
@@ -54,7 +55,20 @@ impl Installer for PgsqlInstaller {
     async fn install(&self, ctx: &InstallContext<'_>) -> Result<InstallResult> {
         let config = ctx.config;
         let install_dir = config.tools_dir().join("pgsql");
-        let (url, filename) = self.resolve_download(config);
+
+        // 解析版本: config > API > hardcoded
+        let version = match &config.versions.pgsql {
+            Some(v) => v.clone(),
+            None => {
+                crate::ui::print_action("查询 PostgreSQL 最新版本...");
+                crate::version::pgsql_latest()
+                    .await
+                    .unwrap_or_else(|| PG_VERSION_DEFAULT.to_string())
+            }
+        };
+
+        let filename = format!("postgresql-{}-1-windows-x64-binaries.zip", version);
+        let url = format!("https://get.enterprisedb.com/postgresql/{}", filename);
 
         let zip_path = download::download(&url, &config.cache_dir(), &filename).await?;
 
@@ -85,7 +99,7 @@ impl Installer for PgsqlInstaller {
 
         Ok(InstallResult {
             install_path: install_dir,
-            version: PG_VERSION.to_string(),
+            version,
         })
     }
 

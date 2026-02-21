@@ -9,8 +9,7 @@ use crate::{download, ui};
 
 pub struct GitInstaller;
 
-const GIT_VERSION: &str = "2.47.1.2";
-const GIT_TAG: &str = "v2.47.1.windows.2";
+const GIT_VERSION_DEFAULT: &str = "2.47.1.2";
 
 #[async_trait]
 impl Installer for GitInstaller {
@@ -43,11 +42,13 @@ impl Installer for GitInstaller {
         Ok(DetectResult::NotInstalled)
     }
 
-    fn resolve_download(&self, _config: &HudoConfig) -> (String, String) {
-        let filename = format!("Git-{}-64-bit.exe", GIT_VERSION);
+    fn resolve_download(&self, config: &HudoConfig) -> (String, String) {
+        let version = config.versions.git.as_deref().unwrap_or(GIT_VERSION_DEFAULT);
+        let tag = git_version_to_tag(version);
+        let filename = format!("Git-{}-64-bit.exe", version);
         let url = format!(
             "https://github.com/git-for-windows/git/releases/download/{}/{}",
-            GIT_TAG, filename
+            tag, filename
         );
         (url, filename)
     }
@@ -55,7 +56,24 @@ impl Installer for GitInstaller {
     async fn install(&self, ctx: &InstallContext<'_>) -> Result<InstallResult> {
         let config = ctx.config;
         let install_dir = config.tools_dir().join("git");
-        let (url, filename) = self.resolve_download(config);
+
+        // 解析版本: config > API > hardcoded
+        let version = match &config.versions.git {
+            Some(v) => v.clone(),
+            None => {
+                crate::ui::print_action("查询 Git 最新版本...");
+                crate::version::git_latest()
+                    .await
+                    .unwrap_or_else(|| GIT_VERSION_DEFAULT.to_string())
+            }
+        };
+
+        let tag = git_version_to_tag(&version);
+        let filename = format!("Git-{}-64-bit.exe", version);
+        let url = format!(
+            "https://github.com/git-for-windows/git/releases/download/{}/{}",
+            tag, filename
+        );
 
         // 下载安装包
         let exe_path = download::download(&url, &config.cache_dir(), &filename).await?;
@@ -76,7 +94,7 @@ impl Installer for GitInstaller {
 
         Ok(InstallResult {
             install_path: install_dir,
-            version: GIT_VERSION.to_string(),
+            version,
         })
     }
 
@@ -190,4 +208,16 @@ fn git_config_set(git: &str, key: &str, value: &str) -> Result<()> {
         anyhow::bail!("git config --global {} 设置失败", key);
     }
     Ok(())
+}
+
+/// 从版本号推导 Git for Windows 的 release tag
+/// "2.47.1.2" → "v2.47.1.windows.2"
+/// "2.48.0"   → "v2.48.0.windows.1"
+fn git_version_to_tag(version: &str) -> String {
+    let parts: Vec<&str> = version.split('.').collect();
+    if parts.len() >= 4 {
+        format!("v{}.{}.{}.windows.{}", parts[0], parts[1], parts[2], parts[3])
+    } else {
+        format!("v{}.windows.1", version)
+    }
 }

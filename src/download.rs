@@ -28,6 +28,25 @@ pub async fn download(url: &str, cache_dir: &Path, filename: &str) -> Result<Pat
         .error_for_status()
         .with_context(|| format!("HTTP 错误: {}", url))?;
 
+    // 写入临时文件，下载完成后再重命名，避免中断导致损坏
+    let tmp_dest = cache_dir.join(format!("{}.tmp", filename));
+    let result = download_to_tmp(&tmp_dest, resp).await;
+
+    if let Err(e) = result {
+        std::fs::remove_file(&tmp_dest).ok();
+        return Err(e);
+    }
+
+    // 重命名为正式文件
+    std::fs::rename(&tmp_dest, &dest)
+        .with_context(|| format!("重命名临时文件失败: {}", tmp_dest.display()))?;
+
+    println!("  {} {}", console::style("✓").green(), filename);
+    Ok(dest)
+}
+
+/// 下载内容到临时文件
+async fn download_to_tmp(tmp_dest: &Path, resp: reqwest::Response) -> Result<()> {
     let total_size = resp.content_length().unwrap_or(0);
 
     let pb = ProgressBar::new(total_size);
@@ -38,9 +57,7 @@ pub async fn download(url: &str, cache_dir: &Path, filename: &str) -> Result<Pat
             .progress_chars("━╸─"),
     );
 
-    // 写入临时文件，下载完成后再重命名，避免中断导致损坏
-    let tmp_dest = cache_dir.join(format!("{}.tmp", filename));
-    let mut file = std::fs::File::create(&tmp_dest)
+    let mut file = std::fs::File::create(tmp_dest)
         .with_context(|| format!("无法创建临时文件: {}", tmp_dest.display()))?;
 
     let mut stream = resp.bytes_stream();
@@ -51,13 +68,7 @@ pub async fn download(url: &str, cache_dir: &Path, filename: &str) -> Result<Pat
     }
 
     pb.finish_and_clear();
-
-    // 重命名为正式文件
-    std::fs::rename(&tmp_dest, &dest)
-        .with_context(|| format!("重命名临时文件失败: {}", tmp_dest.display()))?;
-
-    println!("  {} {}", console::style("✓").green(), filename);
-    Ok(dest)
+    Ok(())
 }
 
 /// 解压 zip 文件到目标目录

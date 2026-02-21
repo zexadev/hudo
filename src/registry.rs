@@ -25,9 +25,17 @@ impl InstallRegistry {
         }
         let content = std::fs::read_to_string(state_path)
             .with_context(|| format!("无法读取状态文件: {}", state_path.display()))?;
-        let registry: InstallRegistry = serde_json::from_str(&content)
-            .with_context(|| format!("状态文件格式错误: {}", state_path.display()))?;
-        Ok(registry)
+        match serde_json::from_str::<InstallRegistry>(&content) {
+            Ok(registry) => Ok(registry),
+            Err(_) => {
+                eprintln!(
+                    "  {} 状态文件损坏，已重置: {}",
+                    console::style("⚠").yellow(),
+                    state_path.display()
+                );
+                Ok(Self::default())
+            }
+        }
     }
 
     /// 保存到 state.json
