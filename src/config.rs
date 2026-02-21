@@ -64,6 +64,8 @@ pub struct MirrorConfig {
     pub java: Option<String>,
     pub vscode: Option<String>,
     pub pycharm: Option<String>,
+    pub maven: Option<String>,
+    pub gradle: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
@@ -73,6 +75,8 @@ pub struct VersionConfig {
     pub mysql: Option<String>,
     pub pgsql: Option<String>,
     pub pycharm: Option<String>,
+    pub maven: Option<String>,
+    pub gradle: Option<String>,
 }
 
 impl HudoConfig {

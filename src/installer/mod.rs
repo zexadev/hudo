@@ -1,7 +1,9 @@
 pub mod bun;
 pub mod git;
 pub mod go;
+pub mod gradle;
 pub mod jdk;
+pub mod maven;
 pub mod miniconda;
 pub mod mingw;
 pub mod mysql;
@@ -110,6 +112,8 @@ pub fn all_installers() -> Vec<Box<dyn Installer>> {
         Box::new(rustup::RustupInstaller),   // Rust
         Box::new(go::GoInstaller),           // Go
         Box::new(jdk::JdkInstaller),         // Java
+        Box::new(maven::MavenInstaller),     // Java 构建
+        Box::new(gradle::GradleInstaller),   // Java/Android 构建
         Box::new(mingw::MingwInstaller),     // C/C++
         // 数据库
         Box::new(mysql::MysqlInstaller),
