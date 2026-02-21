@@ -70,6 +70,37 @@ pub async fn pgsql_latest() -> Option<String> {
         .map(|s| s.to_string())
 }
 
+/// Maven: GitHub API → 最新稳定版本号（如 "3.9.9"）
+pub async fn maven_latest() -> Option<String> {
+    let client = make_client().ok()?;
+    let resp: serde_json::Value = client
+        .get("https://api.github.com/repos/apache/maven/releases/latest")
+        .header("User-Agent", "hudo")
+        .send()
+        .await
+        .ok()?
+        .json()
+        .await
+        .ok()?;
+    // tag_name 格式: "maven-3.9.9"
+    let tag = resp["tag_name"].as_str()?;
+    tag.strip_prefix("maven-").map(|s| s.to_string())
+}
+
+/// Gradle: services.gradle.org API → 最新发布版本号（如 "8.12.1"）
+pub async fn gradle_latest() -> Option<String> {
+    let client = make_client().ok()?;
+    let resp: serde_json::Value = client
+        .get("https://services.gradle.org/versions/current")
+        .send()
+        .await
+        .ok()?
+        .json()
+        .await
+        .ok()?;
+    resp["version"].as_str().map(|s| s.to_string())
+}
+
 /// PyCharm: JetBrains API → 最新 CE 版本号
 pub async fn pycharm_latest() -> Option<String> {
     let client = make_client().ok()?;

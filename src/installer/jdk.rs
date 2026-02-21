@@ -1,5 +1,6 @@
 use anyhow::Result;
 use async_trait::async_trait;
+use dialoguer::Confirm;
 use std::path::PathBuf;
 
 use super::{DetectResult, EnvAction, InstallContext, InstallResult, Installer, ToolInfo};
@@ -133,4 +134,78 @@ fn get_java_version(install_dir: &PathBuf) -> Option<String> {
                 .next()
                 .map(|s| s.to_string())
         })
+}
+
+/// 检测 Java 是否可用（hudo 路径优先，然后系统 PATH）
+pub fn detect_java(config: &HudoConfig) -> bool {
+    let java_hudo = config.lang_dir().join("java").join("bin").join("java.exe");
+    if java_hudo.exists() {
+        return true;
+    }
+    std::process::Command::new("java")
+        .arg("-version")
+        .output()
+        .map(|o| o.status.success() || !o.stderr.is_empty())
+        .unwrap_or(false)
+}
+
+/// 确保 JDK 可用；若不可用则提示用户选择安装或取消
+/// `tool_name` 用于提示信息，如 "Maven"、"Gradle"
+pub async fn ensure_jdk(ctx: &InstallContext<'_>, tool_name: &str) -> Result<()> {
+    if detect_java(ctx.config) {
+        return Ok(());
+    }
+
+    crate::ui::print_warning(&format!(
+        "未检测到 Java，{} 需要 JDK 才能运行",
+        tool_name
+    ));
+
+    let install_now = Confirm::new()
+        .with_prompt("  是否现在安装 Java JDK？")
+        .default(true)
+        .interact()
+        .unwrap_or(false);
+
+    if !install_now {
+        anyhow::bail!("请先安装 JDK：hudo install jdk");
+    }
+
+    crate::ui::print_title("安装 Java JDK");
+    let result = JdkInstaller.install(ctx).await?;
+    crate::ui::print_success(&format!(
+        "Java {} 安装完成",
+        console::style(&result.version).green()
+    ));
+
+    // 持久化环境变量
+    let install_path = &result.install_path;
+    let actions = JdkInstaller.env_actions(install_path, ctx.config);
+    for action in &actions {
+        match action {
+            super::EnvAction::AppendPath { path } => {
+                crate::ui::print_info(&format!("PATH += {}", path));
+                crate::env::EnvManager::append_to_path(path)?;
+            }
+            super::EnvAction::Set { name, value } => {
+                crate::ui::print_info(&format!("{} = {}", name, value));
+                crate::env::EnvManager::set_var(name, value)?;
+            }
+        }
+    }
+    if !actions.is_empty() {
+        crate::env::EnvManager::broadcast_change();
+    }
+
+    // 将 java/bin 和 JAVA_HOME 注入当前进程，让后续工具能立即找到 java
+    let java_bin = install_path.join("bin");
+    if let Ok(old_path) = std::env::var("PATH") {
+        std::env::set_var("PATH", format!("{};{}", java_bin.display(), old_path));
+    }
+    std::env::set_var("JAVA_HOME", install_path.to_string_lossy().as_ref());
+
+    // 恢复原工具安装标题
+    crate::ui::print_title(&format!("安装 {}", tool_name));
+
+    Ok(())
 }
