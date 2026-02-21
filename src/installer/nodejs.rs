@@ -8,7 +8,7 @@ use crate::download;
 
 pub struct NodejsInstaller;
 
-const FNM_VERSION: &str = "1.38.1";
+const FNM_VERSION_DEFAULT: &str = "1.38.1";
 
 #[async_trait]
 impl Installer for NodejsInstaller {
@@ -42,7 +42,7 @@ impl Installer for NodejsInstaller {
         if let Ok(out) = std::process::Command::new("node").arg("--version").output() {
             if out.status.success() {
                 let version = String::from_utf8_lossy(&out.stdout).trim().to_string();
-                return Ok(DetectResult::InstalledExternal(format!("node {}", version)));
+                return Ok(DetectResult::InstalledExternal(version));
             }
         }
 
@@ -51,13 +51,26 @@ impl Installer for NodejsInstaller {
 
     fn resolve_download(&self, config: &HudoConfig) -> (String, String) {
         let filename = "fnm-windows.zip".to_string();
-        let default_base = format!(
-            "https://github.com/Schniz/fnm/releases/download/v{}",
-            FNM_VERSION
-        );
-        let base = config.mirrors.fnm.as_deref().unwrap_or(&default_base);
-        let url = format!("{}/{}", base.trim_end_matches('/'), filename);
-        (url, filename)
+        match &config.versions.fnm {
+            Some(fnm_version) => {
+                let default_base = format!(
+                    "https://github.com/Schniz/fnm/releases/download/v{}",
+                    fnm_version
+                );
+                let base = config.mirrors.fnm.as_deref().unwrap_or(&default_base);
+                let url = format!("{}/{}", base.trim_end_matches('/'), filename);
+                (url, filename)
+            }
+            None => {
+                let base = config
+                    .mirrors
+                    .fnm
+                    .as_deref()
+                    .unwrap_or("https://github.com/Schniz/fnm/releases/latest/download");
+                let url = format!("{}/{}", base.trim_end_matches('/'), filename);
+                (url, filename)
+            }
+        }
     }
 
     async fn install(&self, ctx: &InstallContext<'_>) -> Result<InstallResult> {
@@ -65,6 +78,14 @@ impl Installer for NodejsInstaller {
         let fnm_dir = config.tools_dir().join("fnm");
         let node_dir = config.lang_dir().join("node");
         let (url, filename) = self.resolve_download(config);
+
+        // 使用 latest redirect 时删除缓存（版本未知，文件名相同但内容可能变化）
+        if config.versions.fnm.is_none() {
+            let cached = config.cache_dir().join(&filename);
+            if cached.exists() {
+                std::fs::remove_file(&cached).ok();
+            }
+        }
 
         // 下载 fnm zip
         let zip_path = download::download(&url, &config.cache_dir(), &filename).await?;
@@ -100,7 +121,14 @@ impl Installer for NodejsInstaller {
             .status()
             .ok();
 
-        let version = get_fnm_version(&fnm_dir).unwrap_or_else(|| FNM_VERSION.to_string());
+        let version = get_fnm_version(&fnm_dir).unwrap_or_else(|| {
+            config
+                .versions
+                .fnm
+                .as_deref()
+                .unwrap_or(FNM_VERSION_DEFAULT)
+                .to_string()
+        });
 
         Ok(InstallResult {
             install_path: fnm_dir,

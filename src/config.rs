@@ -14,6 +14,9 @@ pub struct HudoConfig {
     pub go: GoConfig,
 
     #[serde(default)]
+    pub versions: VersionConfig,
+
+    #[serde(default)]
     pub mirrors: MirrorConfig,
 }
 
@@ -60,6 +63,15 @@ pub struct MirrorConfig {
     pub go: Option<String>,
     pub java: Option<String>,
     pub vscode: Option<String>,
+    pub pycharm: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct VersionConfig {
+    pub git: Option<String>,
+    pub fnm: Option<String>,
+    pub mysql: Option<String>,
+    pub pgsql: Option<String>,
     pub pycharm: Option<String>,
 }
 

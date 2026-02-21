@@ -6,6 +6,7 @@ mod installer;
 mod profile;
 mod registry;
 mod ui;
+mod version;
 
 use anyhow::{Context, Result};
 use clap::Parser;
@@ -65,6 +66,7 @@ fn ensure_config() -> Result<HudoConfig> {
         root_dir: root_dir.clone(),
         java: Default::default(),
         go: Default::default(),
+        versions: Default::default(),
         mirrors: Default::default(),
     };
 
@@ -1126,9 +1128,26 @@ async fn cmd_list(config: &HudoConfig, show_all: bool) -> Result<()> {
 fn cmd_config_show(config: &HudoConfig) -> Result<()> {
     ui::print_title("当前配置");
 
-    println!("  {}  {}", ui::pad("root_dir", 16), config.root_dir);
-    println!("  {}  {}", ui::pad("java.version", 16), config.java.version);
-    println!("  {}  {}", ui::pad("go.version", 16), config.go.version);
+    println!("  {}  {}", ui::pad("root_dir", 20), config.root_dir);
+    println!("  {}  {}", ui::pad("java.version", 20), config.java.version);
+    println!("  {}  {}", ui::pad("go.version", 20), config.go.version);
+
+    let versions = [
+        ("versions.git", &config.versions.git),
+        ("versions.fnm", &config.versions.fnm),
+        ("versions.mysql", &config.versions.mysql),
+        ("versions.pgsql", &config.versions.pgsql),
+        ("versions.pycharm", &config.versions.pycharm),
+    ];
+    let has_versions = versions.iter().any(|(_, v)| v.is_some());
+    if has_versions {
+        println!();
+        for (key, val) in &versions {
+            if let Some(v) = val {
+                println!("  {}  {}", ui::pad(key, 20), v);
+            }
+        }
+    }
 
     let mirrors = [
         ("mirrors.uv", &config.mirrors.uv),
@@ -1143,7 +1162,7 @@ fn cmd_config_show(config: &HudoConfig) -> Result<()> {
         println!();
         for (key, val) in &mirrors {
             if let Some(v) = val {
-                println!("  {}  {}", ui::pad(key, 16), v);
+                println!("  {}  {}", ui::pad(key, 20), v);
             }
         }
     }
@@ -1155,13 +1174,18 @@ fn cmd_config_set(config: &mut HudoConfig, key: &str, value: &str) -> Result<()>
         "root_dir" => config.root_dir = value.to_string(),
         "java.version" => config.java.version = value.to_string(),
         "go.version" => config.go.version = value.to_string(),
+        "versions.git" => config.versions.git = Some(value.to_string()),
+        "versions.fnm" => config.versions.fnm = Some(value.to_string()),
+        "versions.mysql" => config.versions.mysql = Some(value.to_string()),
+        "versions.pgsql" => config.versions.pgsql = Some(value.to_string()),
+        "versions.pycharm" => config.versions.pycharm = Some(value.to_string()),
         "mirrors.uv" => config.mirrors.uv = Some(value.to_string()),
         "mirrors.fnm" => config.mirrors.fnm = Some(value.to_string()),
         "mirrors.go" => config.mirrors.go = Some(value.to_string()),
         "mirrors.java" => config.mirrors.java = Some(value.to_string()),
         "mirrors.vscode" => config.mirrors.vscode = Some(value.to_string()),
         "mirrors.pycharm" => config.mirrors.pycharm = Some(value.to_string()),
-        _ => anyhow::bail!("未知配置项: {}。可用: root_dir, java.version, go.version, mirrors.*", key),
+        _ => anyhow::bail!("未知配置项: {}。可用: root_dir, java.version, go.version, versions.*, mirrors.*", key),
     }
     config.save()?;
     ui::print_success(&format!("已设置 {} = {}", key, value));
