@@ -148,6 +148,69 @@ impl Installer for NodejsInstaller {
             },
         ]
     }
+
+    async fn configure(&self, ctx: &InstallContext<'_>) -> Result<()> {
+        let fnm_dir = ctx.config.tools_dir().join("fnm");
+        let fnm_exe = fnm_dir.join("fnm.exe");
+
+        // 写入 PowerShell profile
+        if let Err(e) = write_powershell_profile(&fnm_exe) {
+            crate::ui::print_warning(&format!("写入 PowerShell profile 失败: {}", e));
+            crate::ui::print_info("请手动在 $PROFILE 中添加：");
+            crate::ui::print_info("  fnm env --use-on-cd --shell power-shell | Out-String | Invoke-Expression");
+        }
+
+        Ok(())
+    }
+}
+
+/// 将 fnm 初始化行写入 PowerShell profile（幂等，已存在则跳过）
+fn write_powershell_profile(fnm_exe: &std::path::Path) -> Result<()> {
+    // 获取 PowerShell profile 路径
+    let output = std::process::Command::new("powershell")
+        .args(["-NoProfile", "-Command", "$PROFILE"])
+        .output()
+        .context("无法获取 PowerShell profile 路径")?;
+
+    let profile_path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if profile_path.is_empty() {
+        anyhow::bail!("PowerShell $PROFILE 路径为空");
+    }
+    let profile_path = std::path::Path::new(&profile_path);
+
+    // 确保 profile 目录存在
+    if let Some(parent) = profile_path.parent() {
+        std::fs::create_dir_all(parent).ok();
+    }
+
+    // fnm 初始化行，使用 fnm.exe 的绝对路径确保可用
+    let init_line = format!(
+        "# fnm (Node.js version manager)\r\n& '{}' env --use-on-cd --shell power-shell | Out-String | Invoke-Expression",
+        fnm_exe.display()
+    );
+
+    // 读取现有 profile 内容，已存在则跳过
+    let existing = std::fs::read_to_string(profile_path).unwrap_or_default();
+    if existing.contains("fnm env") {
+        crate::ui::print_info("PowerShell profile 已包含 fnm 初始化，跳过");
+        return Ok(());
+    }
+
+    // 追加写入
+    use std::io::Write;
+    let mut file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(profile_path)
+        .context("打开 PowerShell profile 失败")?;
+
+    if !existing.is_empty() && !existing.ends_with('\n') {
+        writeln!(file)?;
+    }
+    writeln!(file, "\r\n{}", init_line)?;
+
+    crate::ui::print_success("已写入 PowerShell profile，重开终端后 node 命令即可使用");
+    Ok(())
 }
 
 fn get_fnm_version(fnm_dir: &PathBuf) -> Option<String> {
