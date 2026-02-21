@@ -279,6 +279,7 @@ async fn setup_category(
         ));
     }
     ui::print_info("请打开新终端以使环境变量生效");
+    ui::wait_for_key();
     Ok(())
 }
 
@@ -364,12 +365,7 @@ async fn cmd_install_inner(config: &HudoConfig, tool_id: &str, skip_configure: b
         env::EnvManager::broadcast_change();
     }
 
-    // 交互式配置
-    if !skip_configure {
-        inst.configure(&ctx).await?;
-    }
-
-    // 保存安装状态
+    // 保存安装状态（在 configure 之前，确保安装失败不影响已安装记录）
     let mut reg = registry::InstallRegistry::load(&config.state_path())?;
     reg.mark_installed(
         info.id,
@@ -377,6 +373,11 @@ async fn cmd_install_inner(config: &HudoConfig, tool_id: &str, skip_configure: b
         &result.install_path.to_string_lossy(),
     );
     reg.save(&config.state_path())?;
+
+    // 交互式配置
+    if !skip_configure {
+        inst.configure(&ctx).await?;
+    }
 
     Ok(())
 }
@@ -441,7 +442,10 @@ async fn cmd_uninstall(config: &HudoConfig, tool_id: &str) -> Result<()> {
             }
         });
 
-    // 1. 清理环境变量
+    // 1. 卸载前清理（停止服务等）
+    inst.pre_uninstall(&ctx).await?;
+
+    // 2. 清理环境变量
     let actions = inst.env_actions(&install_path, config);
     for action in &actions {
         match action {
@@ -458,7 +462,7 @@ async fn cmd_uninstall(config: &HudoConfig, tool_id: &str) -> Result<()> {
         }
     }
 
-    // 2. Rust 特殊处理：同时删除 rustup 目录
+    // 3. Rust 特殊处理：同时删除 rustup 目录
     if info.id == "rust" {
         let rustup_home = config.tools_dir().join("rustup");
         if rustup_home.exists() {
@@ -942,7 +946,7 @@ async fn cmd_import(config: &mut HudoConfig, file: &str) -> Result<()> {
                 total as u32,
                 &format!("安装 {}", info.name),
             );
-            if let Err(e) = cmd_install_inner(config, info.id, true).await {
+            if let Err(e) = cmd_install_inner(config, info.id, false).await {
                 ui::print_error(&format!("{} 安装失败: {}", info.name, e));
                 fail_names.push(info.name);
                 let cont = Confirm::new()
@@ -979,6 +983,7 @@ async fn cmd_import(config: &mut HudoConfig, file: &str) -> Result<()> {
     }
 
     ui::print_info("请打开新终端以使环境变量生效");
+    ui::wait_for_key();
     Ok(())
 }
 
@@ -1334,12 +1339,13 @@ async fn interactive_uninstall(config: &HudoConfig) -> Result<()> {
     let installers = all_installers();
     let reg = registry::InstallRegistry::load(&config.state_path())?;
 
-    // 直接从 state.json 读取 hudo 管理的已安装工具，无需子进程检测
+    let refs: Vec<&dyn installer::Installer> = installers.iter().map(|b| b.as_ref()).collect();
+    let results = detect_all_parallel(&refs, config, &reg);
+
     let mut installed = Vec::new();
-    for inst in &installers {
-        let info = inst.info();
-        if let Some(DetectResult::InstalledByHudo(ver)) = fast_detect(info.id, &reg) {
-            installed.push((info.id, info.name, ver));
+    for (info, result) in &results {
+        if let Ok(DetectResult::InstalledByHudo(ver)) = result {
+            installed.push((info.id, info.name, ver.clone()));
         }
     }
 
