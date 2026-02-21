@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-use dialoguer::{Confirm, theme::ColorfulTheme};
+use dialoguer::Confirm;
 use std::path::PathBuf;
 
 use super::{DetectResult, EnvAction, InstallContext, InstallResult, Installer, ToolInfo};
@@ -125,10 +125,10 @@ async fn ensure_gcc(ctx: &InstallContext<'_>) -> Result<()> {
         return Ok(());
     }
 
-    crate::ui::print_warning("未检测到 gcc（MinGW-w64），Rust GNU 工具链需要它作为链接器");
+    crate::ui::print_warning("未检测到 gcc，Rust GNU 工具链需要 MinGW-w64 作为链接器");
 
-    let install_now = Confirm::with_theme(&ColorfulTheme::default())
-        .with_prompt("  是否现在安装 MinGW-w64 (gcc)？")
+    let install_now = Confirm::new()
+        .with_prompt("  是否现在安装 C/C++ (MinGW-w64)？")
         .default(true)
         .interact()
         .unwrap_or(false);
@@ -137,32 +137,41 @@ async fn ensure_gcc(ctx: &InstallContext<'_>) -> Result<()> {
         anyhow::bail!("请先安装 MinGW-w64：hudo install c");
     }
 
-    // 安装 MinGW-w64
-    MingwInstaller.install(ctx).await?;
+    // 以和直接 hudo install c 相同的样式安装 MinGW-w64
+    crate::ui::print_title("安装 C/C++ (MinGW-w64)");
+    let result = MingwInstaller.install(ctx).await?;
+    crate::ui::print_success(&format!(
+        "C/C++ {} 安装完成",
+        console::style(&result.version).green()
+    ));
 
-    // 将 mingw64/bin 加入当前进程 PATH，让 rustup-init 能找到 gcc
-    let mingw_bin = ctx.config.tools_dir().join("mingw64").join("bin");
-    if let Ok(old_path) = std::env::var("PATH") {
-        std::env::set_var(
-            "PATH",
-            format!("{};{}", mingw_bin.display(), old_path),
-        );
-    }
-
-    // 设置环境变量（持久化到注册表）
-    let mingw_inst = MingwInstaller;
-    let actions = mingw_inst.env_actions(&mingw_bin.parent().unwrap().to_path_buf(), ctx.config);
-    for action in actions {
+    // 持久化环境变量（PATH += mingw64/bin）
+    let install_path = ctx.config.tools_dir().join("mingw64");
+    let actions = MingwInstaller.env_actions(&install_path, ctx.config);
+    for action in &actions {
         match action {
             super::EnvAction::AppendPath { path } => {
-                crate::env::EnvManager::append_to_path(&path)?;
+                crate::ui::print_info(&format!("PATH += {}", path));
+                crate::env::EnvManager::append_to_path(path)?;
             }
             super::EnvAction::Set { name, value } => {
-                crate::env::EnvManager::set_var(&name, &value)?;
+                crate::ui::print_info(&format!("{} = {}", name, value));
+                crate::env::EnvManager::set_var(name, value)?;
             }
         }
     }
-    crate::env::EnvManager::broadcast_change();
+    if !actions.is_empty() {
+        crate::env::EnvManager::broadcast_change();
+    }
+
+    // 将 mingw64/bin 加入当前进程 PATH，让后续 rustup-init 能找到 gcc
+    let mingw_bin = install_path.join("bin");
+    if let Ok(old_path) = std::env::var("PATH") {
+        std::env::set_var("PATH", format!("{};{}", mingw_bin.display(), old_path));
+    }
+
+    // 恢复 Rust 安装的标题，视觉上衔接
+    crate::ui::print_title("安装 Rust");
 
     Ok(())
 }
