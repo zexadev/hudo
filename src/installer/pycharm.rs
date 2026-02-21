@@ -8,6 +8,8 @@ use crate::download;
 
 pub struct PycharmInstaller;
 
+const PYCHARM_VERSION_DEFAULT: &str = "2024.3.5";
+
 #[async_trait]
 impl Installer for PycharmInstaller {
     fn info(&self) -> ToolInfo {
@@ -45,11 +47,13 @@ impl Installer for PycharmInstaller {
     }
 
     fn resolve_download(&self, config: &HudoConfig) -> (String, String) {
+        let version = config.versions.pycharm.as_deref().unwrap_or(PYCHARM_VERSION_DEFAULT);
         let base = config.mirrors.pycharm.as_deref()
             .unwrap_or("https://download.jetbrains.com");
         let url = format!(
-            "{}/python/pycharm-community-2024.3.5.win.zip",
-            base.trim_end_matches('/')
+            "{}/python/pycharm-community-{}.win.zip",
+            base.trim_end_matches('/'),
+            version
         );
         (url, "pycharm-community.zip".to_string())
     }
@@ -57,7 +61,29 @@ impl Installer for PycharmInstaller {
     async fn install(&self, ctx: &InstallContext<'_>) -> Result<InstallResult> {
         let config = ctx.config;
         let install_dir = config.ide_dir().join("pycharm");
-        let (url, filename) = self.resolve_download(config);
+
+        // 解析版本: config > API > hardcoded
+        let version = match &config.versions.pycharm {
+            Some(v) => v.clone(),
+            None => {
+                crate::ui::print_action("查询 PyCharm 最新版本...");
+                crate::version::pycharm_latest()
+                    .await
+                    .unwrap_or_else(|| PYCHARM_VERSION_DEFAULT.to_string())
+            }
+        };
+
+        let base = config
+            .mirrors
+            .pycharm
+            .as_deref()
+            .unwrap_or("https://download.jetbrains.com");
+        let url = format!(
+            "{}/python/pycharm-community-{}.win.zip",
+            base.trim_end_matches('/'),
+            version
+        );
+        let filename = "pycharm-community.zip".to_string();
 
         let zip_path = download::download(&url, &config.cache_dir(), &filename).await?;
 
@@ -80,7 +106,7 @@ impl Installer for PycharmInstaller {
 
         Ok(InstallResult {
             install_path: install_dir,
-            version: "latest".to_string(),
+            version,
         })
     }
 

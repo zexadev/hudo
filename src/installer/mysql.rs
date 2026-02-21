@@ -8,7 +8,7 @@ use crate::download;
 
 pub struct MysqlInstaller;
 
-const MYSQL_VERSION: &str = "8.4.4";
+const MYSQL_VERSION_DEFAULT: &str = "8.4.4";
 
 #[async_trait]
 impl Installer for MysqlInstaller {
@@ -41,12 +41,15 @@ impl Installer for MysqlInstaller {
         Ok(DetectResult::NotInstalled)
     }
 
-    fn resolve_download(&self, _config: &HudoConfig) -> (String, String) {
+    fn resolve_download(&self, config: &HudoConfig) -> (String, String) {
+        let version = config.versions.mysql.as_deref().unwrap_or(MYSQL_VERSION_DEFAULT);
         // MySQL Community Server zip archive (no installer)
-        let filename = format!("mysql-{}-winx64.zip", MYSQL_VERSION);
+        let filename = format!("mysql-{}-winx64.zip", version);
+        // 从版本号提取 major.minor（如 "8.4.4" → "8.4"）
+        let major_minor = version.rsplitn(2, '.').last().unwrap_or(version);
         let url = format!(
-            "https://dev.mysql.com/get/Downloads/MySQL-8.4/{}",
-            filename
+            "https://dev.mysql.com/get/Downloads/MySQL-{}/{}",
+            major_minor, filename
         );
         (url, filename)
     }
@@ -77,9 +80,11 @@ impl Installer for MysqlInstaller {
         let data_dir = install_dir.join("data");
         std::fs::create_dir_all(&data_dir).ok();
 
+        let version = config.versions.mysql.as_deref().unwrap_or(MYSQL_VERSION_DEFAULT);
+
         Ok(InstallResult {
             install_path: install_dir,
-            version: MYSQL_VERSION.to_string(),
+            version: version.to_string(),
         })
     }
 
