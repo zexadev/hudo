@@ -64,6 +64,8 @@ pub struct MirrorConfig {
     pub java: Option<String>,
     pub vscode: Option<String>,
     pub pycharm: Option<String>,
+    pub mysql: Option<String>,
+    pub pgsql: Option<String>,
     pub maven: Option<String>,
     pub gradle: Option<String>,
 }
