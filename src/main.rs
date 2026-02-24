@@ -1010,6 +1010,65 @@ async fn apply_tool_configs(
     Ok(())
 }
 
+/// 卸载 hudo 自身
+async fn cmd_self_uninstall() -> Result<()> {
+    ui::print_title("卸载 hudo");
+
+    let confirmed = Confirm::with_theme(&ColorfulTheme::default())
+        .with_prompt("确定要卸载 hudo 吗？")
+        .default(false)
+        .interact()
+        .context("输入被取消")?;
+    if !confirmed {
+        println!("  已取消");
+        return Ok(());
+    }
+
+    let del_config = Confirm::with_theme(&ColorfulTheme::default())
+        .with_prompt("同时删除配置文件和缓存？")
+        .default(false)
+        .interact()
+        .unwrap_or(false);
+
+    let current_exe = std::env::current_exe().context("无法获取当前程序路径")?;
+    let bin_dir = current_exe
+        .parent()
+        .context("无法获取安装目录")?;
+    let hudo_home = bin_dir.parent();
+
+    // 从 PATH 中移除 bin 目录
+    let bin_str = bin_dir.to_string_lossy().to_string();
+    env::EnvManager::remove_from_path(&bin_str).ok();
+    env::EnvManager::broadcast_change();
+    ui::print_success("已从 PATH 移除");
+
+    // 构建后台清理命令
+    let exe_str = current_exe.to_string_lossy().to_string();
+    let mut ps_cmd = format!(
+        "Start-Sleep -Milliseconds 500; Remove-Item -Force '{}' -ErrorAction SilentlyContinue",
+        exe_str
+    );
+    if del_config {
+        if let Some(home) = hudo_home {
+            ps_cmd.push_str(&format!(
+                "; Remove-Item -Recurse -Force '{}' -ErrorAction SilentlyContinue",
+                home.to_string_lossy()
+            ));
+        }
+    }
+
+    // 脱离控制台启动后台清理
+    use std::os::windows::process::CommandExt;
+    const DETACHED_PROCESS: u32 = 0x00000008;
+    let _ = std::process::Command::new("powershell")
+        .args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", &ps_cmd])
+        .creation_flags(DETACHED_PROCESS)
+        .spawn();
+
+    ui::print_success("hudo 已卸载，重启终端后生效");
+    Ok(())
+}
+
 /// 更新 hudo 到最新版本（自替换）
 async fn cmd_update() -> Result<()> {
     let current = env!("CARGO_PKG_VERSION");
@@ -1586,9 +1645,18 @@ async fn main() -> Result<()> {
                 let config = ensure_config()?;
                 cmd_install(&config, &tool.to_lowercase()).await?;
             }
-            Commands::Uninstall { tool } => {
-                let config = ensure_config()?;
-                cmd_uninstall(&config, &tool.to_lowercase()).await?;
+            Commands::Uninstall { tool, uninstall_self } => {
+                if uninstall_self {
+                    cmd_self_uninstall().await?;
+                } else if let Some(t) = tool {
+                    let config = ensure_config()?;
+                    cmd_uninstall(&config, &t.to_lowercase()).await?;
+                } else {
+                    eprintln!("请指定工具名称，或使用 --self 卸载 hudo 自身");
+                    eprintln!("示例: hudo uninstall git");
+                    eprintln!("      hudo uninstall --self");
+                    std::process::exit(1);
+                }
             }
             Commands::Export { file } => {
                 let config = ensure_config()?;
