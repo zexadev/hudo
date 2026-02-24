@@ -42,6 +42,8 @@ pub enum Commands {
         #[command(subcommand)]
         action: ConfigAction,
     },
+    /// 更新 hudo 到最新版本
+    Update,
 }
 
 #[derive(Subcommand)]
