@@ -1,5 +1,8 @@
 use reqwest::Client;
 
+/// GitHub 仓库（owner/repo），用于自更新检查
+pub const GITHUB_REPO: &str = "huancheng01/hudo";
+
 /// 复用同一个 client，带 5 秒超时
 fn make_client() -> reqwest::Result<Client> {
     Client::builder()
@@ -116,6 +119,25 @@ pub async fn pycharm_latest() -> Option<String> {
         .await
         .ok()?;
     resp["PCC"][0]["version"].as_str().map(|s| s.to_string())
+}
+
+/// hudo 自身：GitHub Releases → 最新版本号（如 "0.2.0"）
+pub async fn hudo_latest() -> Option<String> {
+    let client = make_client().ok()?;
+    let resp: serde_json::Value = client
+        .get(&format!(
+            "https://api.github.com/repos/{}/releases/latest",
+            GITHUB_REPO
+        ))
+        .header("User-Agent", "hudo")
+        .send()
+        .await
+        .ok()?
+        .json()
+        .await
+        .ok()?;
+    let tag = resp["tag_name"].as_str()?; // "v0.2.0"
+    Some(tag.trim_start_matches('v').to_string())
 }
 
 #[cfg(test)]
