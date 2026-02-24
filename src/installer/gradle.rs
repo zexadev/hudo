@@ -21,10 +21,13 @@ impl Installer for GradleInstaller {
     }
 
     async fn detect_installed(&self, ctx: &InstallContext<'_>) -> Result<DetectResult> {
-        // 检查 hudo 安装目录
+        // 检查 hudo 安装目录（gradle.bat 需通过 cmd /c 执行）
         let gradle_bat = ctx.config.tools_dir().join("gradle").join("bin").join("gradle.bat");
         if gradle_bat.exists() {
-            if let Ok(out) = std::process::Command::new(&gradle_bat).arg("--version").output() {
+            if let Ok(out) = std::process::Command::new("cmd")
+                .args(["/c", &gradle_bat.to_string_lossy(), "--version"])
+                .output()
+            {
                 if out.status.success() {
                     let version = String::from_utf8_lossy(&out.stdout)
                         .lines()
@@ -36,8 +39,11 @@ impl Installer for GradleInstaller {
             }
         }
 
-        // 检查系统 PATH
-        if let Ok(out) = std::process::Command::new("gradle").arg("--version").output() {
+        // 检查系统 PATH（gradle 是 .bat，通过 cmd /c 调用）
+        if let Ok(out) = std::process::Command::new("cmd")
+            .args(["/c", "gradle", "--version"])
+            .output()
+        {
             if out.status.success() {
                 let version = String::from_utf8_lossy(&out.stdout)
                     .lines()

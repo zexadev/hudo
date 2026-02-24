@@ -1,4 +1,5 @@
 pub mod bun;
+pub mod gh;
 pub mod git;
 pub mod go;
 pub mod gradle;
@@ -173,6 +174,7 @@ pub fn all_installers() -> Vec<Box<dyn Installer>> {
     vec![
         // 工具
         Box::new(git::GitInstaller),
+        Box::new(gh::GhInstaller),
         // 语言环境 — 按语言分组
         Box::new(uv::UvInstaller),           // Python
         Box::new(miniconda::MinicondaInstaller), // Python

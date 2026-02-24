@@ -10,6 +10,22 @@ fn make_client() -> reqwest::Result<Client> {
         .build()
 }
 
+/// GitHub CLI: GitHub API → 最新版本号（如 "2.87.3"）
+pub async fn gh_latest() -> Option<String> {
+    let client = make_client().ok()?;
+    let resp: serde_json::Value = client
+        .get("https://api.github.com/repos/cli/cli/releases/latest")
+        .header("User-Agent", "hudo")
+        .send()
+        .await
+        .ok()?
+        .json()
+        .await
+        .ok()?;
+    let tag = resp["tag_name"].as_str()?; // "v2.87.3"
+    Some(tag.trim_start_matches('v').to_string())
+}
+
 /// Git: GitHub API → tag "v2.47.1.windows.2" → "2.47.1.2"
 pub async fn git_latest() -> Option<String> {
     let client = make_client().ok()?;
