@@ -1010,6 +1010,93 @@ async fn apply_tool_configs(
     Ok(())
 }
 
+/// 更新 hudo 到最新版本（自替换）
+async fn cmd_update() -> Result<()> {
+    let current = env!("CARGO_PKG_VERSION");
+
+    ui::print_action("检查最新版本...");
+    let latest = match version::hudo_latest().await {
+        Some(v) => v,
+        None => {
+            ui::print_error("无法获取版本信息，请检查网络连接");
+            return Ok(());
+        }
+    };
+
+    if latest == current {
+        ui::print_success(&format!("已是最新版本 v{}", current));
+        return Ok(());
+    }
+
+    println!(
+        "  发现新版本: {} → {}",
+        console::style(format!("v{}", current)).dim(),
+        console::style(format!("v{}", latest)).cyan().bold()
+    );
+
+    // 下载新版本
+    let url = format!(
+        "https://github.com/{}/releases/download/v{}/hudo.exe",
+        version::GITHUB_REPO,
+        latest
+    );
+    let tmp = std::env::temp_dir().join("hudo-new.exe");
+
+    let pb = indicatif::ProgressBar::new_spinner();
+    pb.set_style(
+        indicatif::ProgressStyle::default_spinner()
+            .template("  {spinner:.cyan} {msg}")
+            .unwrap(),
+    );
+    pb.set_message(format!("下载 hudo v{}...", latest));
+    pb.enable_steady_tick(std::time::Duration::from_millis(100));
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(120))
+        .build()?;
+    let bytes = client
+        .get(&url)
+        .send()
+        .await
+        .context("下载请求失败")?
+        .bytes()
+        .await
+        .context("读取下载内容失败")?;
+
+    pb.finish_and_clear();
+    std::fs::write(&tmp, &bytes).context("写入临时文件失败")?;
+
+    // 自替换：重命名当前 exe（Windows 允许对运行中的 exe 改名），再移入新文件
+    let current_exe = std::env::current_exe().context("无法获取当前程序路径")?;
+    let old_exe = current_exe.with_extension("exe.old");
+
+    std::fs::rename(&current_exe, &old_exe)
+        .context("重命名当前程序失败（请确认安装目录有写权限）")?;
+    if let Err(e) = std::fs::rename(&tmp, &current_exe) {
+        // 回滚：恢复原文件，避免留下损坏状态
+        let _ = std::fs::rename(&old_exe, &current_exe);
+        return Err(e).context("替换程序失败");
+    }
+
+    // 后台清理 .old 文件（等当前进程退出后删除）
+    let old_str = old_exe.to_string_lossy().to_string();
+    let _ = std::process::Command::new("powershell")
+        .args([
+            "-NoProfile",
+            "-WindowStyle",
+            "Hidden",
+            "-Command",
+            &format!(
+                "Start-Sleep -Milliseconds 1000; Remove-Item -Force '{}' -ErrorAction SilentlyContinue",
+                old_str
+            ),
+        ])
+        .spawn();
+
+    ui::print_success(&format!("hudo 已更新到 v{}，重新打开终端后生效", latest));
+    Ok(())
+}
+
 /// 快速检测：从 state.json 读取版本，仅做路径存在检查，无需子进程
 fn fast_detect(id: &str, reg: &registry::InstallRegistry) -> Option<DetectResult> {
     let state = reg.get(id)?;
@@ -1528,6 +1615,9 @@ async fn main() -> Result<()> {
                     cmd_config_reset()?;
                 }
             },
+            Commands::Update => {
+                cmd_update().await?;
+            }
         },
         None => {
             let config = ensure_config()?;
