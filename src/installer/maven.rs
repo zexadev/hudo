@@ -21,10 +21,13 @@ impl Installer for MavenInstaller {
     }
 
     async fn detect_installed(&self, ctx: &InstallContext<'_>) -> Result<DetectResult> {
-        // 检查 hudo 安装目录
+        // 检查 hudo 安装目录（mvn.cmd 需通过 cmd /c 执行）
         let mvn_cmd = ctx.config.tools_dir().join("maven").join("bin").join("mvn.cmd");
         if mvn_cmd.exists() {
-            if let Ok(out) = std::process::Command::new(&mvn_cmd).arg("--version").output() {
+            if let Ok(out) = std::process::Command::new("cmd")
+                .args(["/c", &mvn_cmd.to_string_lossy(), "--version"])
+                .output()
+            {
                 if out.status.success() {
                     let version = String::from_utf8_lossy(&out.stdout)
                         .lines()
@@ -36,8 +39,11 @@ impl Installer for MavenInstaller {
             }
         }
 
-        // 检查系统 PATH
-        if let Ok(out) = std::process::Command::new("mvn").arg("--version").output() {
+        // 检查系统 PATH（mvn 是 .cmd，通过 cmd /c 调用）
+        if let Ok(out) = std::process::Command::new("cmd")
+            .args(["/c", "mvn", "--version"])
+            .output()
+        {
             if out.status.success() {
                 let version = String::from_utf8_lossy(&out.stdout)
                     .lines()
