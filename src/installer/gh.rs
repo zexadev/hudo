@@ -21,19 +21,25 @@ impl Installer for GhInstaller {
     }
 
     async fn detect_installed(&self, ctx: &InstallContext<'_>) -> Result<DetectResult> {
-        // 1. hudo 安装目录
-        let gh_exe = ctx.config.tools_dir().join("gh").join("bin").join("gh.exe");
-        if gh_exe.exists() {
-            if let Ok(out) = std::process::Command::new(&gh_exe).arg("--version").output() {
-                if out.status.success() {
-                    let version =
-                        parse_gh_version(&String::from_utf8_lossy(&out.stdout));
-                    return Ok(DetectResult::InstalledByHudo(version));
+        // gh zip 解压后 gh.exe 可能在根目录或 bin/ 下，两处都检查
+        let root = ctx.config.tools_dir().join("gh");
+        let candidates = [
+            root.join("bin").join("gh.exe"),
+            root.join("gh.exe"),
+        ];
+        for gh_exe in &candidates {
+            if gh_exe.exists() {
+                if let Ok(out) = std::process::Command::new(gh_exe).arg("--version").output() {
+                    if out.status.success() {
+                        let version =
+                            parse_gh_version(&String::from_utf8_lossy(&out.stdout));
+                        return Ok(DetectResult::InstalledByHudo(version));
+                    }
                 }
             }
         }
 
-        // 2. 系统 PATH
+        // 系统 PATH
         if let Ok(out) = std::process::Command::new("gh").arg("--version").output() {
             if out.status.success() {
                 let version = parse_gh_version(&String::from_utf8_lossy(&out.stdout));
@@ -98,9 +104,14 @@ impl Installer for GhInstaller {
     }
 
     fn env_actions(&self, install_path: &PathBuf, _config: &HudoConfig) -> Vec<EnvAction> {
-        vec![EnvAction::AppendPath {
-            path: install_path.join("bin").to_string_lossy().to_string(),
-        }]
+        // gh zip 解压后 gh.exe 可能在 bin/ 下或根目录，动态判断
+        let bin_dir = install_path.join("bin");
+        let path = if bin_dir.join("gh.exe").exists() {
+            bin_dir.to_string_lossy().to_string()
+        } else {
+            install_path.to_string_lossy().to_string()
+        };
+        vec![EnvAction::AppendPath { path }]
     }
 }
 
