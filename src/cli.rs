@@ -5,7 +5,7 @@ use clap::{Parser, Subcommand};
 pub struct Cli {
     /// 显示版本号
     #[arg(short = 'v', long, action = clap::ArgAction::Version)]
-    version: bool,
+    version: Option<bool>,
 
     #[command(subcommand)]
     pub command: Option<Commands>,

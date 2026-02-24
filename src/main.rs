@@ -1078,8 +1078,10 @@ async fn cmd_update() -> Result<()> {
         return Err(e).context("替换程序失败");
     }
 
-    // 后台清理 .old 文件（等当前进程退出后删除）
+    // 后台清理 .old 文件（完全脱离父控制台，避免 hudo 退出时关闭终端窗口）
     let old_str = old_exe.to_string_lossy().to_string();
+    use std::os::windows::process::CommandExt;
+    const DETACHED_PROCESS: u32 = 0x00000008;
     let _ = std::process::Command::new("powershell")
         .args([
             "-NoProfile",
@@ -1091,6 +1093,7 @@ async fn cmd_update() -> Result<()> {
                 old_str
             ),
         ])
+        .creation_flags(DETACHED_PROCESS)
         .spawn();
 
     ui::print_success(&format!("hudo 已更新到 v{}，重新打开终端后生效", latest));
