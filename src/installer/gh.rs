@@ -1,10 +1,11 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use async_trait::async_trait;
 use std::path::PathBuf;
 
 use super::{DetectResult, EnvAction, InstallContext, InstallResult, Installer, ToolInfo};
 use crate::config::HudoConfig;
 use crate::download;
+use crate::ui;
 
 pub struct GhInstaller;
 
@@ -113,6 +114,42 @@ impl Installer for GhInstaller {
         };
         vec![EnvAction::AppendPath { path }]
     }
+
+    async fn configure(&self, ctx: &InstallContext<'_>) -> Result<()> {
+        let gh = find_gh(ctx.config);
+
+        ui::print_title("配置 GitHub CLI");
+
+        // 检查是否已登录
+        if let Ok(out) = std::process::Command::new(&gh).arg("auth").arg("status").output() {
+            if out.status.success() {
+                let info = String::from_utf8_lossy(&out.stderr);
+                for line in info.lines() {
+                    ui::print_info(line.trim());
+                }
+                ui::print_success("GitHub CLI 已登录");
+                return Ok(());
+            }
+        }
+
+        // 未登录，提示并运行 gh auth login
+        ui::print_info("尚未登录 GitHub，即将打开浏览器进行授权...");
+        ui::print_info("如需跳过，按 Ctrl+C 取消");
+        println!();
+
+        let status = std::process::Command::new(&gh)
+            .args(["auth", "login"])
+            .status()
+            .context("启动 gh auth login 失败")?;
+
+        if status.success() {
+            ui::print_success("GitHub CLI 登录成功");
+        } else {
+            ui::print_warning("登录未完成，可稍后手动运行: gh auth login");
+        }
+
+        Ok(())
+    }
 }
 
 /// "gh version 2.87.3 (2025-01-15)" → "2.87.3"
@@ -124,4 +161,18 @@ fn parse_gh_version(output: &str) -> String {
         .and_then(|s| s.split_whitespace().next())
         .unwrap_or("已安装")
         .to_string()
+}
+
+/// 找到 gh 可执行文件路径（优先 hudo 安装，其次系统 PATH）
+fn find_gh(config: &HudoConfig) -> PathBuf {
+    let root = config.tools_dir().join("gh");
+    let bin = root.join("bin").join("gh.exe");
+    if bin.exists() {
+        return bin;
+    }
+    let direct = root.join("gh.exe");
+    if direct.exists() {
+        return direct;
+    }
+    PathBuf::from("gh")
 }
