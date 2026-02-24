@@ -20,10 +20,13 @@ pub enum Commands {
         /// 工具名称（git, uv, nodejs, bun, rust, go, jdk, c, miniconda, mysql, pgsql, vscode, pycharm）
         tool: String,
     },
-    /// 卸载由 hudo 安装的工具
+    /// 卸载由 hudo 安装的工具，或卸载 hudo 自身
     Uninstall {
-        /// 工具名称
-        tool: String,
+        /// 工具名称（与 --self 二选一）
+        tool: Option<String>,
+        /// 卸载 hudo 自身
+        #[arg(long = "self")]
+        uninstall_self: bool,
     },
     /// 列出所有工具及安装状态
     List {
