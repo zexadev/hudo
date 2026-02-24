@@ -1,8 +1,12 @@
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
-#[command(name = "hudo", version, about = "混沌 - 开发环境一键引导工具")]
+#[command(name = "hudo", version, about = "混沌 - 开发环境一键引导工具", disable_version_flag = true)]
 pub struct Cli {
+    /// 显示版本号
+    #[arg(short = 'v', long, action = clap::ArgAction::Version)]
+    version: bool,
+
     #[command(subcommand)]
     pub command: Option<Commands>,
 }
