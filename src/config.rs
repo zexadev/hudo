@@ -73,6 +73,7 @@ pub struct MirrorConfig {
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct VersionConfig {
     pub git: Option<String>,
+    pub gh: Option<String>,
     pub fnm: Option<String>,
     pub mysql: Option<String>,
     pub pgsql: Option<String>,

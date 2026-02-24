@@ -96,16 +96,16 @@ impl ToolCategory {
 
     pub fn icon(&self) -> &'static str {
         match self {
-            ToolCategory::Tool => "🔧",
-            ToolCategory::Language => "📝",
-            ToolCategory::Database => "🗄️",
-            ToolCategory::Ide => "💻",
+            ToolCategory::Tool => "[T]",
+            ToolCategory::Language => "[L]",
+            ToolCategory::Database => "[D]",
+            ToolCategory::Ide => "[E]",
         }
     }
 
     pub fn from_id(id: &str) -> Self {
         match id {
-            "git" => ToolCategory::Tool,
+            "git" | "gh" => ToolCategory::Tool,
             "uv" | "nodejs" | "bun" | "miniconda" | "rust" | "go" | "jdk" | "c" | "maven" | "gradle" => ToolCategory::Language,
             "mysql" | "pgsql" => ToolCategory::Database,
             "vscode" | "pycharm" => ToolCategory::Ide,

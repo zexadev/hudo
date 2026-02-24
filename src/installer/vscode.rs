@@ -19,7 +19,7 @@ impl Installer for VscodeInstaller {
     }
 
     async fn detect_installed(&self, ctx: &InstallContext<'_>) -> Result<DetectResult> {
-        // 检查 hudo 安装目录
+        // 1. hudo 安装目录
         let code_exe = ctx.config.ide_dir().join("vscode").join("Code.exe");
         if code_exe.exists() {
             if let Ok(out) = std::process::Command::new(&code_exe).arg("--version").output() {
@@ -34,8 +34,49 @@ impl Installer for VscodeInstaller {
             }
         }
 
-        // 检查系统 PATH 上的 code 命令
-        if let Ok(out) = std::process::Command::new("code").arg("--version").output() {
+        // 2. 系统常见安装路径（官方安装程序）
+        let candidate_paths = {
+            let mut paths = vec![];
+            // 用户级安装: %LOCALAPPDATA%\Programs\Microsoft VS Code\Code.exe
+            if let Ok(local) = std::env::var("LOCALAPPDATA") {
+                paths.push(
+                    std::path::PathBuf::from(&local)
+                        .join("Programs")
+                        .join("Microsoft VS Code")
+                        .join("Code.exe"),
+                );
+            }
+            // 系统级安装: %ProgramFiles%\Microsoft VS Code\Code.exe
+            if let Ok(pf) = std::env::var("ProgramFiles") {
+                paths.push(
+                    std::path::PathBuf::from(&pf)
+                        .join("Microsoft VS Code")
+                        .join("Code.exe"),
+                );
+            }
+            paths
+        };
+
+        for path in &candidate_paths {
+            if path.exists() {
+                if let Ok(out) = std::process::Command::new(path).arg("--version").output() {
+                    if out.status.success() {
+                        let version = String::from_utf8_lossy(&out.stdout)
+                            .lines()
+                            .next()
+                            .unwrap_or("unknown")
+                            .to_string();
+                        return Ok(DetectResult::InstalledExternal(version));
+                    }
+                }
+            }
+        }
+
+        // 3. PATH 上的 code 命令（通过 cmd /c 处理 .cmd 扩展名）
+        if let Ok(out) = std::process::Command::new("cmd")
+            .args(["/c", "code", "--version"])
+            .output()
+        {
             if out.status.success() {
                 let version = String::from_utf8_lossy(&out.stdout)
                     .lines()
