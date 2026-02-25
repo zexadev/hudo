@@ -1,4 +1,5 @@
 pub mod bun;
+pub mod claude_code;
 pub mod gh;
 pub mod git;
 pub mod go;
@@ -175,6 +176,7 @@ pub fn all_installers() -> Vec<Box<dyn Installer>> {
         // 工具
         Box::new(git::GitInstaller),
         Box::new(gh::GhInstaller),
+        Box::new(claude_code::ClaudeCodeInstaller),
         // 语言环境 — 按语言分组
         Box::new(uv::UvInstaller),           // Python
         Box::new(miniconda::MinicondaInstaller), // Python
