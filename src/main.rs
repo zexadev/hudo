@@ -1,3 +1,4 @@
+mod cc;
 mod cli;
 mod config;
 mod download;
@@ -982,6 +983,25 @@ async fn cmd_import(config: &mut HudoConfig, file: &str) -> Result<()> {
         apply_tool_configs(config, &installers, &prof).await?;
     }
 
+    // 合并 cc_providers（按 name 去重，新的追加）
+    if !prof.cc_providers.is_empty() {
+        println!();
+        let mut store = cc::CcProviders::load()?;
+        let mut added = 0u32;
+        for p in &prof.cc_providers {
+            if !store.providers.iter().any(|e| e.name == p.name) {
+                store.providers.push(p.clone());
+                added += 1;
+            }
+        }
+        store.save()?;
+        ui::print_info(&format!(
+            "Claude Code providers: {} 个已存在，新增 {} 个",
+            prof.cc_providers.len() as u32 - added,
+            added
+        ));
+    }
+
     ui::print_info("请打开新终端以使环境变量生效");
     ui::wait_for_key();
     Ok(())
@@ -1457,6 +1477,7 @@ async fn interactive_menu(config: &HudoConfig) -> Result<()> {
             "🗑   卸载工具",
             "📁  环境档案",
             "⚙   配置",
+            "🔑  Claude Code API 来源",
             "🚪  退出",
         ];
 
@@ -1473,7 +1494,8 @@ async fn interactive_menu(config: &HudoConfig) -> Result<()> {
             Some(2) => { interactive_uninstall(config).await?; }
             Some(3) => { interactive_profile(config).await?; }
             Some(4) => { interactive_config(config).await?; }
-            Some(5) | None => break,
+            Some(5) => { cc::cmd_cc()?; }
+            Some(6) | None => break,
             _ => unreachable!(),
         }
     }
@@ -1688,6 +1710,9 @@ async fn main() -> Result<()> {
             },
             Commands::Update => {
                 cmd_update().await?;
+            }
+            Commands::Cc => {
+                cc::cmd_cc()?;
             }
         },
         None => {
