@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::Path;
 
+use crate::cc::{CcProvider, CcProviders};
 use crate::config::HudoConfig;
 use crate::installer::{DetectResult, InstallContext, Installer};
 use crate::registry;
@@ -35,6 +36,8 @@ pub struct HudoProfile {
     pub tools: BTreeMap<String, String>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub tool_config: BTreeMap<String, BTreeMap<String, String>>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub cc_providers: Vec<CcProvider>,
 }
 
 impl HudoProfile {
@@ -110,6 +113,7 @@ impl HudoProfile {
             settings,
             tools,
             tool_config,
+            cc_providers: CcProviders::load().unwrap_or_default().providers,
         })
     }
 

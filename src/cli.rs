@@ -51,6 +51,8 @@ pub enum Commands {
     },
     /// 更新 hudo 到最新版本
     Update,
+    /// 管理 Claude Code API 来源（切换/添加/删除 Provider）
+    Cc,
 }
 
 #[derive(Subcommand)]
