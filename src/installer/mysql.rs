@@ -275,11 +275,14 @@ fn write_my_ini(install_dir: &PathBuf) -> Result<PathBuf> {
 use super::{query_service_exists, query_service_state, run_as_admin, ServiceState};
 
 /// 从 `mysql --version` 输出中提取版本号
-/// "D:\...\mysql.exe  Ver 8.4.8 for Win64 ..." → "8.4.8"
+/// "Ver 14.14 Distrib 5.7.44, for Win64" → "5.7.44"
+/// "Ver 8.4.8 Distrib 8.4.8, for Win64"  → "8.4.8"
 fn parse_mysql_version(output: &str) -> String {
+    // 从 "Distrib " 后取，兼容 5.7（Ver 是客户端协议版本，非 MySQL 实际版本）
     output
-        .split("Ver ")
+        .split("Distrib ")
         .nth(1)
+        .and_then(|s| s.split(',').next())
         .and_then(|s| s.split_whitespace().next())
         .unwrap_or("已安装")
         .to_string()

@@ -3,7 +3,7 @@
 
 $ErrorActionPreference = "Stop"
 
-$repo      = "huancheng01/hudo"
+$repo      = "zexadev/hudo"
 $installDir = "$env:USERPROFILE\.hudo\bin"
 
 Write-Host ""
