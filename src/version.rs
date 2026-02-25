@@ -1,7 +1,7 @@
 use reqwest::Client;
 
 /// GitHub 仓库（owner/repo），用于自更新检查
-pub const GITHUB_REPO: &str = "huancheng01/hudo";
+pub const GITHUB_REPO: &str = "zexadev/hudo";
 
 /// 复用同一个 client，带 5 秒超时
 fn make_client() -> reqwest::Result<Client> {
@@ -135,6 +135,23 @@ pub async fn pycharm_latest() -> Option<String> {
         .await
         .ok()?;
     resp["PCC"][0]["version"].as_str().map(|s| s.to_string())
+}
+
+/// Claude Code: GCS → 最新版本号
+pub async fn claude_code_latest() -> Option<String> {
+    let client = make_client().ok()?;
+    let resp = client
+        .get(format!(
+            "{}/latest",
+            "https://storage.googleapis.com/claude-code-dist-86c565f3-f756-42ad-8dfa-d59b1c096819/claude-code-releases"
+        ))
+        .send()
+        .await
+        .ok()?
+        .text()
+        .await
+        .ok()?;
+    Some(resp.trim().to_string())
 }
 
 /// hudo 自身：GitHub Releases → 最新版本号（如 "0.2.0"）

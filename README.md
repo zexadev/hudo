@@ -9,7 +9,7 @@
 ## 安装
 
 ```powershell
-irm https://raw.githubusercontent.com/huancheng01/hudo/master/install.ps1 | iex
+irm https://raw.githubusercontent.com/zexadev/hudo/master/install.ps1 | iex
 ```
 
 安装到 `%USERPROFILE%\.hudo\bin\`，自动写入用户 PATH，无需管理员权限。

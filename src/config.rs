@@ -80,6 +80,7 @@ pub struct VersionConfig {
     pub pycharm: Option<String>,
     pub maven: Option<String>,
     pub gradle: Option<String>,
+    pub claude_code: Option<String>,
 }
 
 impl HudoConfig {
