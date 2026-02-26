@@ -24,6 +24,8 @@ pub struct ProfileSettings {
     pub go_version: Option<String>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub mirrors: BTreeMap<String, String>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub versions: BTreeMap<String, String>,
 }
 
 /// 完整的 Profile 数据结构
@@ -98,11 +100,44 @@ impl HudoProfile {
         if let Some(ref v) = config.mirrors.pycharm {
             mirrors.insert("pycharm".to_string(), v.clone());
         }
+        if let Some(ref v) = config.mirrors.mysql {
+            mirrors.insert("mysql".to_string(), v.clone());
+        }
+        if let Some(ref v) = config.mirrors.pgsql {
+            mirrors.insert("pgsql".to_string(), v.clone());
+        }
+        if let Some(ref v) = config.mirrors.maven {
+            mirrors.insert("maven".to_string(), v.clone());
+        }
+        if let Some(ref v) = config.mirrors.gradle {
+            mirrors.insert("gradle".to_string(), v.clone());
+        }
+
+        let mut versions = BTreeMap::new();
+        if let Some(ref v) = config.versions.git {
+            versions.insert("git".to_string(), v.clone());
+        }
+        if let Some(ref v) = config.versions.gh {
+            versions.insert("gh".to_string(), v.clone());
+        }
+        if let Some(ref v) = config.versions.fnm {
+            versions.insert("fnm".to_string(), v.clone());
+        }
+        if let Some(ref v) = config.versions.mysql {
+            versions.insert("mysql".to_string(), v.clone());
+        }
+        if let Some(ref v) = config.versions.pgsql {
+            versions.insert("pgsql".to_string(), v.clone());
+        }
+        if let Some(ref v) = config.versions.pycharm {
+            versions.insert("pycharm".to_string(), v.clone());
+        }
 
         let settings = ProfileSettings {
             java_version: Some(config.java.version.clone()),
             go_version: Some(config.go.version.clone()),
             mirrors,
+            versions,
         };
 
         Ok(HudoProfile {

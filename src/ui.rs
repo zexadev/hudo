@@ -108,7 +108,7 @@ impl ToolCategory {
             "git" | "gh" | "claude-code" => ToolCategory::Tool,
             "uv" | "nodejs" | "bun" | "miniconda" | "rust" | "go" | "jdk" | "c" | "maven" | "gradle" => ToolCategory::Language,
             "mysql" | "pgsql" => ToolCategory::Database,
-            "vscode" | "pycharm" => ToolCategory::Ide,
+            "vscode" | "pycharm" | "chrome" => ToolCategory::Ide,
             _ => ToolCategory::Tool,
         }
     }

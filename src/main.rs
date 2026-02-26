@@ -61,7 +61,23 @@ fn ensure_config() -> Result<HudoConfig> {
         .context("磁盘选择被取消")?;
 
     let chosen = &drives[selection];
-    let root_dir = format!("{}:\\hudo", chosen.letter);
+    let mut root_dir = format!("{}:\\hudo", chosen.letter);
+
+    // C 盘根目录普通用户无写权限，自动回退到用户目录
+    if chosen.is_system {
+        if let Err(e) = std::fs::create_dir_all(&root_dir) {
+            if e.kind() == std::io::ErrorKind::PermissionDenied {
+                let profile = std::env::var("USERPROFILE")
+                    .unwrap_or_else(|_| "C:\\Users\\Default".to_string());
+                let fallback = format!("{}\\hudo", profile);
+                ui::print_warning(&format!(
+                    "C:\\ 根目录需要管理员权限，已自动切换到: {}",
+                    fallback
+                ));
+                root_dir = fallback;
+            }
+        }
+    }
 
     let config = HudoConfig {
         root_dir: root_dir.clone(),
@@ -869,9 +885,27 @@ async fn cmd_import(config: &mut HudoConfig, file: &str) -> Result<()> {
             "java" => config.mirrors.java = Some(value.clone()),
             "vscode" => config.mirrors.vscode = Some(value.clone()),
             "pycharm" => config.mirrors.pycharm = Some(value.clone()),
+            "mysql" => config.mirrors.mysql = Some(value.clone()),
+            "pgsql" => config.mirrors.pgsql = Some(value.clone()),
+            "maven" => config.mirrors.maven = Some(value.clone()),
+            "gradle" => config.mirrors.gradle = Some(value.clone()),
             _ => {}
         }
         ui::print_info(&format!("mirrors.{} = {}", key, value));
+        settings_changed = true;
+    }
+    // 应用 versions
+    for (key, value) in &prof.settings.versions {
+        match key.as_str() {
+            "git" => config.versions.git = Some(value.clone()),
+            "gh" => config.versions.gh = Some(value.clone()),
+            "fnm" => config.versions.fnm = Some(value.clone()),
+            "mysql" => config.versions.mysql = Some(value.clone()),
+            "pgsql" => config.versions.pgsql = Some(value.clone()),
+            "pycharm" => config.versions.pycharm = Some(value.clone()),
+            _ => {}
+        }
+        ui::print_info(&format!("versions.{} = {}", key, value));
         settings_changed = true;
     }
     if settings_changed {
