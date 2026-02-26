@@ -1,4 +1,5 @@
 pub mod bun;
+pub mod chrome;
 pub mod claude_code;
 pub mod gh;
 pub mod git;
@@ -194,5 +195,6 @@ pub fn all_installers() -> Vec<Box<dyn Installer>> {
         // 编辑器 / IDE
         Box::new(vscode::VscodeInstaller),
         Box::new(pycharm::PycharmInstaller),
+        Box::new(chrome::ChromeInstaller),
     ]
 }
