@@ -1,0 +1,14 @@
+{
+  "name": "hudo-docs",
+  "version": "1.0.0",
+  "description": "hudo 文档站",
+  "type": "module",
+  "scripts": {
+    "dev": "vitepress dev",
+    "build": "vitepress build",
+    "preview": "vitepress preview"
+  },
+  "devDependencies": {
+    "vitepress": "^1.6.4"
+  }
+}
