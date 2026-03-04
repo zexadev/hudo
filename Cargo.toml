@@ -2,6 +2,7 @@
 name = "hudo"
 version = "0.1.5"
 edition = "2021"
+license = "MIT"
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
