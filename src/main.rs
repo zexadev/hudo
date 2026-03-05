@@ -25,6 +25,32 @@ fn ensure_config() -> Result<HudoConfig> {
     // 首次运行，引导用户选择安装目录
     ui::print_banner();
     ui::print_title("首次运行 — 选择安装目录");
+
+    let root_dir = {
+        #[cfg(windows)]
+        { ensure_config_windows()? }
+        #[cfg(not(windows))]
+        { ensure_config_unix()? }
+    };
+
+    let config = HudoConfig {
+        root_dir: root_dir.clone(),
+        java: Default::default(),
+        go: Default::default(),
+        versions: Default::default(),
+        mirrors: Default::default(),
+    };
+
+    config.save()?;
+    config.ensure_dirs()?;
+    ui::print_success(&format!("已创建 {}", root_dir));
+
+    Ok(config)
+}
+
+/// Windows：扫描盘符让用户选择
+#[cfg(windows)]
+fn ensure_config_windows() -> Result<String> {
     println!("  {}", console::style("所有开发工具将安装到所选磁盘的 hudo 目录下").dim());
 
     let drives = HudoConfig::scan_drives();
@@ -79,19 +105,30 @@ fn ensure_config() -> Result<HudoConfig> {
         }
     }
 
-    let config = HudoConfig {
-        root_dir: root_dir.clone(),
-        java: Default::default(),
-        go: Default::default(),
-        versions: Default::default(),
-        mirrors: Default::default(),
-    };
+    Ok(root_dir)
+}
 
-    config.save()?;
-    config.ensure_dirs()?;
-    ui::print_success(&format!("已创建 {}", root_dir));
+/// Windows stub（Unix 编译时不需要）
+#[cfg(not(windows))]
+fn ensure_config_windows() -> Result<String> {
+    unreachable!()
+}
 
-    Ok(config)
+/// Unix：默认 ~/hudo，允许用户自定义
+#[cfg(not(windows))]
+fn ensure_config_unix() -> Result<String> {
+    let default_dir = HudoConfig::default_root_dir()
+        .unwrap_or_else(|_| "/opt/hudo".to_string());
+    println!("  {}", console::style(format!("默认安装目录: {}", default_dir)).dim());
+
+    println!();
+    let root_dir: String = Input::with_theme(&ColorfulTheme::default())
+        .with_prompt("安装目录")
+        .default(default_dir)
+        .interact_text()
+        .context("目录输入被取消")?;
+
+    Ok(root_dir)
 }
 
 /// 交互式多选安装（两级：先选分类，再选工具）
@@ -351,7 +388,10 @@ async fn cmd_install_inner(config: &HudoConfig, tool_id: &str, skip_configure: b
                 return Ok(());
             }
             ui::print_step(1, 2, "卸载旧版...");
+            #[cfg(windows)]
             uninstall_from_system(info.id)?;
+            #[cfg(not(windows))]
+            anyhow::bail!("该工具已安装在系统其他位置，请手动卸载后重试");
         }
         DetectResult::NotInstalled => {}
     }
@@ -510,6 +550,7 @@ async fn cmd_uninstall(config: &HudoConfig, tool_id: &str) -> Result<()> {
 }
 
 /// 卸载系统中已有的工具
+#[cfg(windows)]
 fn uninstall_from_system(tool_id: &str) -> Result<()> {
     match tool_id {
         "git" => uninstall_via_registry("Git_is1"),
@@ -531,6 +572,7 @@ fn uninstall_from_system(tool_id: &str) -> Result<()> {
 }
 
 /// 通过注册表查找并运行系统卸载程序（如 Git）
+#[cfg(windows)]
 fn uninstall_via_registry(uninstall_key: &str) -> Result<()> {
     let hklm = winreg::RegKey::predef(winreg::enums::HKEY_LOCAL_MACHINE);
     let path = format!(
@@ -564,6 +606,7 @@ fn uninstall_via_registry(uninstall_key: &str) -> Result<()> {
 }
 
 /// 卸载系统中已有的 uv（绿色安装，无注册表卸载器）
+#[cfg(windows)]
 fn uninstall_uv() -> Result<()> {
     // 找到旧 uv 的位置
     let output = std::process::Command::new("where")
@@ -614,6 +657,7 @@ fn uninstall_uv() -> Result<()> {
 }
 
 /// 通用卸载：通过 where 找到旧二进制，从 PATH 移除其所在目录，并清理指定环境变量
+#[cfg(windows)]
 fn uninstall_green(binaries: &[&str], env_vars: &[&str]) -> Result<()> {
     for bin in binaries {
         let bin_name = format!("{}.exe", bin);
@@ -648,6 +692,7 @@ fn uninstall_green(binaries: &[&str], env_vars: &[&str]) -> Result<()> {
 }
 
 /// 卸载系统中的 Rust（通过 rustup self uninstall）
+#[cfg(windows)]
 fn uninstall_rust() -> Result<()> {
     // 先尝试 rustup self uninstall
     if let Ok(output) = std::process::Command::new("where").arg("rustup").output() {
@@ -680,6 +725,7 @@ fn uninstall_rust() -> Result<()> {
 }
 
 /// 卸载系统中的 Go（可能是 MSI 安装或绿色安装）
+#[cfg(windows)]
 fn uninstall_go() -> Result<()> {
     // 先尝试注册表卸载器（Go 官方 MSI 的注册表键名可能有变化）
     let hklm = winreg::RegKey::predef(winreg::enums::HKEY_LOCAL_MACHINE);
@@ -721,6 +767,7 @@ fn uninstall_go() -> Result<()> {
 }
 
 /// 卸载系统中的 Miniconda
+#[cfg(windows)]
 fn uninstall_miniconda() -> Result<()> {
     // 找到 conda 位置
     if let Ok(output) = std::process::Command::new("where").arg("conda").output() {
@@ -758,6 +805,7 @@ fn uninstall_miniconda() -> Result<()> {
 }
 
 /// 卸载系统中的 VS Code
+#[cfg(windows)]
 fn uninstall_vscode() -> Result<()> {
     // 检查注册表中的 VS Code 卸载器（用户安装或系统安装）
     for (hive, hive_name) in &[
@@ -1065,6 +1113,7 @@ async fn apply_tool_configs(
 }
 
 /// 卸载 hudo 自身
+#[cfg(windows)]
 async fn cmd_self_uninstall() -> Result<()> {
     ui::print_title("卸载 hudo");
 
@@ -1124,6 +1173,7 @@ async fn cmd_self_uninstall() -> Result<()> {
 }
 
 /// 更新 hudo 到最新版本（自替换）
+#[cfg(windows)]
 async fn cmd_update() -> Result<()> {
     let current = env!("CARGO_PKG_VERSION");
 
@@ -1149,7 +1199,7 @@ async fn cmd_update() -> Result<()> {
 
     // 下载新版本
     let url = format!(
-        "https://github.com/{}/releases/download/v{}/hudo.exe",
+        "https://github.com/{}/releases/download/v{}/hudo-x86_64-pc-windows-msvc.exe",
         version::GITHUB_REPO,
         latest
     );
@@ -1466,7 +1516,8 @@ fn cmd_config_set(config: &mut HudoConfig, key: &str, value: &str) -> Result<()>
 
 fn cmd_config_edit() -> Result<()> {
     let path = HudoConfig::config_path()?;
-    let editor = std::env::var("EDITOR").unwrap_or_else(|_| "notepad".to_string());
+    let default_editor = if cfg!(windows) { "notepad" } else { "vi" };
+    let editor = std::env::var("EDITOR").unwrap_or_else(|_| default_editor.to_string());
     std::process::Command::new(&editor)
         .arg(path.to_str().unwrap())
         .status()
@@ -1703,7 +1754,12 @@ async fn main() -> Result<()> {
             }
             Commands::Uninstall { tool, uninstall_self } => {
                 if uninstall_self {
+                    #[cfg(windows)]
                     cmd_self_uninstall().await?;
+                    #[cfg(not(windows))]
+                    {
+                        ui::print_error("Linux/macOS 暂不支持自卸载，请手动删除 hudo 目录");
+                    }
                 } else if let Some(t) = tool {
                     let config = ensure_config()?;
                     cmd_uninstall(&config, &t.to_lowercase()).await?;
@@ -1743,7 +1799,12 @@ async fn main() -> Result<()> {
                 }
             },
             Commands::Update => {
+                #[cfg(windows)]
                 cmd_update().await?;
+                #[cfg(not(windows))]
+                {
+                    ui::print_error("Linux/macOS 暂不支持自更新，请重新下载安装");
+                }
             }
             Commands::Cc => {
                 cc::cmd_cc()?;

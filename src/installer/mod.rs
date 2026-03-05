@@ -1,20 +1,39 @@
-pub mod bun;
-pub mod chrome;
 pub mod claude_code;
+
+// Windows 专属安装器
+#[cfg(windows)]
+pub mod bun;
+#[cfg(windows)]
+pub mod chrome;
+#[cfg(windows)]
 pub mod gh;
+#[cfg(windows)]
 pub mod git;
+#[cfg(windows)]
 pub mod go;
+#[cfg(windows)]
 pub mod gradle;
+#[cfg(windows)]
 pub mod jdk;
+#[cfg(windows)]
 pub mod maven;
+#[cfg(windows)]
 pub mod miniconda;
+#[cfg(windows)]
 pub mod mingw;
+#[cfg(windows)]
 pub mod mysql;
+#[cfg(windows)]
 pub mod nodejs;
+#[cfg(windows)]
 pub mod pgsql;
+#[cfg(windows)]
 pub mod pycharm;
+#[cfg(windows)]
 pub mod rustup;
+#[cfg(windows)]
 pub mod uv;
+#[cfg(windows)]
 pub mod vscode;
 
 use anyhow::Result;
@@ -110,12 +129,14 @@ pub trait Installer: Send + Sync {
 
 // ── Windows 服务管理工具（mysql、pgsql 共用） ───────────────────────────────
 
+#[cfg(windows)]
 pub enum ServiceState {
     Running,
     Stopped,
     NotFound,
 }
 
+#[cfg(windows)]
 pub fn query_service_exists(name: &str) -> bool {
     std::process::Command::new("sc")
         .args(["query", name])
@@ -124,6 +145,7 @@ pub fn query_service_exists(name: &str) -> bool {
         .unwrap_or(false)
 }
 
+#[cfg(windows)]
 pub fn query_service_state(name: &str) -> ServiceState {
     match std::process::Command::new("sc").args(["query", name]).output() {
         Ok(out) if out.status.success() => {
@@ -138,6 +160,7 @@ pub fn query_service_state(name: &str) -> ServiceState {
 }
 
 /// 通过 PowerShell Start-Process -Verb RunAs 以管理员身份运行命令
+#[cfg(windows)]
 pub fn run_as_admin(program: &str, args: &[&str]) -> anyhow::Result<()> {
     let prog_escaped = program.replace('\'', "''");
     let arg_list: Vec<String> = args
@@ -173,28 +196,33 @@ pub fn run_as_admin(program: &str, args: &[&str]) -> anyhow::Result<()> {
 
 /// 返回所有可用的安装器
 pub fn all_installers() -> Vec<Box<dyn Installer>> {
-    vec![
-        // 工具
-        Box::new(git::GitInstaller),
-        Box::new(gh::GhInstaller),
+    let mut list: Vec<Box<dyn Installer>> = vec![
         Box::new(claude_code::ClaudeCodeInstaller),
+    ];
+
+    #[cfg(windows)]
+    {
+        list.insert(0, Box::new(git::GitInstaller));
+        list.insert(1, Box::new(gh::GhInstaller));
         // 语言环境 — 按语言分组
-        Box::new(uv::UvInstaller),           // Python
-        Box::new(miniconda::MinicondaInstaller), // Python
-        Box::new(nodejs::NodejsInstaller),   // JavaScript
-        Box::new(bun::BunInstaller),         // JavaScript
-        Box::new(rustup::RustupInstaller),   // Rust
-        Box::new(go::GoInstaller),           // Go
-        Box::new(jdk::JdkInstaller),         // Java
-        Box::new(maven::MavenInstaller),     // Java 构建
-        Box::new(gradle::GradleInstaller),   // Java/Android 构建
-        Box::new(mingw::MingwInstaller),     // C/C++
+        list.push(Box::new(uv::UvInstaller));           // Python
+        list.push(Box::new(miniconda::MinicondaInstaller)); // Python
+        list.push(Box::new(nodejs::NodejsInstaller));   // JavaScript
+        list.push(Box::new(bun::BunInstaller));         // JavaScript
+        list.push(Box::new(rustup::RustupInstaller));   // Rust
+        list.push(Box::new(go::GoInstaller));           // Go
+        list.push(Box::new(jdk::JdkInstaller));         // Java
+        list.push(Box::new(maven::MavenInstaller));     // Java 构建
+        list.push(Box::new(gradle::GradleInstaller));   // Java/Android 构建
+        list.push(Box::new(mingw::MingwInstaller));     // C/C++
         // 数据库
-        Box::new(mysql::MysqlInstaller),
-        Box::new(pgsql::PgsqlInstaller),
+        list.push(Box::new(mysql::MysqlInstaller));
+        list.push(Box::new(pgsql::PgsqlInstaller));
         // 编辑器 / IDE
-        Box::new(vscode::VscodeInstaller),
-        Box::new(pycharm::PycharmInstaller),
-        Box::new(chrome::ChromeInstaller),
-    ]
+        list.push(Box::new(vscode::VscodeInstaller));
+        list.push(Box::new(pycharm::PycharmInstaller));
+        list.push(Box::new(chrome::ChromeInstaller));
+    }
+
+    list
 }

@@ -151,6 +151,7 @@ impl HudoConfig {
     }
 
     /// 扫描可用磁盘（Windows 盘符）
+    #[cfg(windows)]
     pub fn scan_drives() -> Vec<DriveInfo> {
         let mut drives = Vec::new();
         for letter in b'C'..=b'Z' {
@@ -169,6 +170,13 @@ impl HudoConfig {
         }
         drives
     }
+
+    /// Unix 上返回默认安装路径 ~/hudo
+    #[cfg(unix)]
+    pub fn default_root_dir() -> Result<String> {
+        let home = dirs::home_dir().context("无法获取用户主目录")?;
+        Ok(home.join("hudo").to_string_lossy().to_string())
+    }
 }
 
 #[derive(Debug)]
@@ -178,6 +186,7 @@ pub struct DriveInfo {
     pub free_gb: u64,
 }
 
+#[cfg(windows)]
 fn get_free_space_gb(path: &str) -> u64 {
     use std::os::windows::ffi::OsStrExt;
     use std::ffi::OsStr;

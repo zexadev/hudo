@@ -12,11 +12,57 @@ pub struct ClaudeCodeInstaller;
 const DEFAULT_VERSION: &str = "1.0.0";
 const GCS_BUCKET: &str = "https://storage.googleapis.com/claude-code-dist-86c565f3-f756-42ad-8dfa-d59b1c096819/claude-code-releases";
 
-/// 根据 CPU 架构返回 GCS 平台标识
-fn platform_key() -> &'static str {
-    match std::env::consts::ARCH {
-        "aarch64" => "win32-arm64",
-        _ => "win32-x64",
+/// 可执行文件名：Windows 为 claude.exe，其他平台为 claude
+fn exe_name() -> &'static str {
+    if cfg!(windows) {
+        "claude.exe"
+    } else {
+        "claude"
+    }
+}
+
+/// 检测 Linux 是否为 musl libc（而非 glibc）
+#[cfg(target_os = "linux")]
+fn is_musl() -> bool {
+    // 方法 1：检查 musl 动态库文件
+    if let Ok(entries) = std::fs::read_dir("/lib") {
+        for entry in entries.flatten() {
+            if let Some(name) = entry.file_name().to_str() {
+                if name.starts_with("libc.musl-") && name.ends_with(".so.1") {
+                    return true;
+                }
+            }
+        }
+    }
+    // 方法 2：通过 ldd 输出判断
+    if let Ok(out) = std::process::Command::new("ldd").arg("--version").output() {
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        if stderr.contains("musl") || stdout.contains("musl") {
+            return true;
+        }
+    }
+    false
+}
+
+/// 根据操作系统和 CPU 架构返回 GCS 平台标识
+fn platform_key() -> String {
+    let arch = match std::env::consts::ARCH {
+        "aarch64" => "arm64",
+        _ => "x64",
+    };
+
+    match std::env::consts::OS {
+        "windows" => format!("win32-{}", arch),
+        "macos" => format!("darwin-{}", arch),
+        "linux" => {
+            #[cfg(target_os = "linux")]
+            if is_musl() {
+                return format!("linux-{}-musl", arch);
+            }
+            format!("linux-{}", arch)
+        }
+        other => format!("{}-{}", other, arch),
     }
 }
 
@@ -82,7 +128,7 @@ impl Installer for ClaudeCodeInstaller {
     }
 
     async fn detect_installed(&self, ctx: &InstallContext<'_>) -> Result<DetectResult> {
-        let exe = ctx.config.tools_dir().join("claude-code").join("claude.exe");
+        let exe = ctx.config.tools_dir().join("claude-code").join(exe_name());
         if exe.exists() {
             if let Ok(out) = std::process::Command::new(&exe).arg("--version").output() {
                 if out.status.success() {
@@ -111,8 +157,10 @@ impl Installer for ClaudeCodeInstaller {
             .as_deref()
             .unwrap_or(DEFAULT_VERSION);
         let platform = platform_key();
-        let url = format!("{}/{}/{}/claude.exe", GCS_BUCKET, version, platform);
-        let filename = format!("claude-{}-{}.exe", version, platform);
+        let exe = exe_name();
+        let url = format!("{}/{}/{}/{}", GCS_BUCKET, version, platform, exe);
+        let filename = format!("claude-{}-{}{}", version, platform,
+            if cfg!(windows) { ".exe" } else { "" });
         (url, filename)
     }
 
@@ -132,14 +180,16 @@ impl Installer for ClaudeCodeInstaller {
         };
 
         let platform = platform_key();
+        let exe = exe_name();
 
         // 2. 获取 manifest SHA256
         ui::print_action("获取校验信息...");
-        let expected_sha = fetch_manifest_sha256(&version, platform).await?;
+        let expected_sha = fetch_manifest_sha256(&version, &platform).await?;
 
-        // 3. 下载 claude.exe
-        let filename = format!("claude-{}-{}.exe", version, platform);
-        let url = format!("{}/{}/{}/claude.exe", GCS_BUCKET, version, platform);
+        // 3. 下载可执行文件
+        let filename = format!("claude-{}-{}{}", version, platform,
+            if cfg!(windows) { ".exe" } else { "" });
+        let url = format!("{}/{}/{}/{}", GCS_BUCKET, version, platform, exe);
         let cached_path = download::download(&url, &config.cache_dir(), &filename).await?;
 
         // 4. SHA256 校验
@@ -159,9 +209,17 @@ impl Installer for ClaudeCodeInstaller {
         std::fs::create_dir_all(&install_dir)
             .with_context(|| format!("无法创建目录: {}", install_dir.display()))?;
 
-        let dest_exe = install_dir.join("claude.exe");
+        let dest_exe = install_dir.join(exe);
         std::fs::copy(&cached_path, &dest_exe)
             .with_context(|| format!("复制文件失败: {}", dest_exe.display()))?;
+
+        // Linux/macOS 需要设置可执行权限
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&dest_exe, std::fs::Permissions::from_mode(0o755))
+                .with_context(|| format!("设置执行权限失败: {}", dest_exe.display()))?;
+        }
 
         Ok(InstallResult {
             install_path: install_dir,
