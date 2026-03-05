@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use dialoguer::{Input, Select, theme::ColorfulTheme};
+use dialoguer::{Confirm, Input, Select, theme::ColorfulTheme};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -12,6 +12,16 @@ pub struct CcProvider {
     pub name: String,
     pub base_url: String,
     pub api_key: String,
+    #[serde(default)]
+    pub model: Option<String>,
+    #[serde(default)]
+    pub reasoning_model: Option<String>,
+    #[serde(default)]
+    pub haiku_model: Option<String>,
+    #[serde(default)]
+    pub sonnet_model: Option<String>,
+    #[serde(default)]
+    pub opus_model: Option<String>,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -77,7 +87,7 @@ fn write_settings(val: &serde_json::Value) -> Result<()> {
         .with_context(|| format!("写入 {} 失败", path.display()))
 }
 
-/// 将 provider 写入 claude settings.json
+/// 将 provider 写入 claude settings.json，并确保 onboarding 已标记完成
 fn apply_provider(p: &CcProvider) -> Result<()> {
     let mut settings = read_settings()?;
 
@@ -89,7 +99,59 @@ fn apply_provider(p: &CcProvider) -> Result<()> {
     settings["env"]["ANTHROPIC_AUTH_TOKEN"] = serde_json::Value::String(p.api_key.clone());
     settings["env"]["ANTHROPIC_BASE_URL"] = serde_json::Value::String(p.base_url.clone());
 
-    write_settings(&settings)
+    // 写入模型配置（有值则设置，无值则清除）
+    let model_fields: &[(&str, &Option<String>)] = &[
+        ("ANTHROPIC_MODEL", &p.model),
+        ("ANTHROPIC_REASONING_MODEL", &p.reasoning_model),
+        ("ANTHROPIC_DEFAULT_HAIKU_MODEL", &p.haiku_model),
+        ("ANTHROPIC_DEFAULT_SONNET_MODEL", &p.sonnet_model),
+        ("ANTHROPIC_DEFAULT_OPUS_MODEL", &p.opus_model),
+    ];
+    for (key, val) in model_fields {
+        match val {
+            Some(v) => {
+                settings["env"][key] = serde_json::Value::String(v.clone());
+            }
+            None => {
+                if let Some(env) = settings["env"].as_object_mut() {
+                    env.remove(*key);
+                }
+            }
+        }
+    }
+
+    write_settings(&settings)?;
+
+    // 使用第三方 API 时，需要在 ~/.claude.json 中标记 onboarding 已完成
+    // 否则 Claude Code 会卡在引导流程
+    ensure_onboarding_completed()
+}
+
+/// 确保 ~/.claude.json 中 hasCompletedOnboarding = true
+fn ensure_onboarding_completed() -> Result<()> {
+    let home = dirs::home_dir().context("无法获取用户主目录")?;
+    let path = home.join(".claude.json");
+
+    let mut val = if path.exists() {
+        let s = std::fs::read_to_string(&path)
+            .with_context(|| format!("读取 {} 失败", path.display()))?;
+        serde_json::from_str(&s)
+            .with_context(|| format!("解析 {} 失败", path.display()))?
+    } else {
+        serde_json::json!({})
+    };
+
+    if val.get("hasCompletedOnboarding") == Some(&serde_json::Value::Bool(true)) {
+        return Ok(());
+    }
+
+    val["hasCompletedOnboarding"] = serde_json::Value::Bool(true);
+
+    let s = serde_json::to_string_pretty(&val).context("序列化 .claude.json 失败")?;
+    std::fs::write(&path, s)
+        .with_context(|| format!("写入 {} 失败", path.display()))?;
+
+    Ok(())
 }
 
 /// 从 claude settings.json 读取当前激活的 base_url
@@ -196,10 +258,40 @@ fn add_provider(store: &mut CcProviders) -> Result<()> {
         .with_prompt("API Key（sk-ant-...）")
         .interact_text()?;
 
+    // 可选：配置自定义模型
+    let (model, reasoning_model, haiku_model, sonnet_model, opus_model) =
+        if Confirm::with_theme(&ColorfulTheme::default())
+            .with_prompt("是否配置自定义模型？（第三方 API 通常需要）")
+            .default(false)
+            .interact()?
+        {
+            let ask = |prompt: &str| -> Result<Option<String>> {
+                let v: String = Input::with_theme(&ColorfulTheme::default())
+                    .with_prompt(prompt)
+                    .allow_empty(true)
+                    .interact_text()?;
+                Ok(if v.is_empty() { None } else { Some(v) })
+            };
+            (
+                ask("默认模型 (ANTHROPIC_MODEL，回车跳过)")?,
+                ask("推理模型 (ANTHROPIC_REASONING_MODEL，回车跳过)")?,
+                ask("Haiku 模型 (ANTHROPIC_DEFAULT_HAIKU_MODEL，回车跳过)")?,
+                ask("Sonnet 模型 (ANTHROPIC_DEFAULT_SONNET_MODEL，回车跳过)")?,
+                ask("Opus 模型 (ANTHROPIC_DEFAULT_OPUS_MODEL，回车跳过)")?,
+            )
+        } else {
+            (None, None, None, None, None)
+        };
+
     store.providers.push(CcProvider {
         name,
         base_url,
         api_key,
+        model,
+        reasoning_model,
+        haiku_model,
+        sonnet_model,
+        opus_model,
     });
 
     ui::print_success("Provider 已添加");
