@@ -2,8 +2,6 @@
 # 用法: irm https://hudo.zexa.cc/install.ps1 | iex
 
 $ErrorActionPreference = "Stop"
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-$OutputEncoding = [System.Text.Encoding]::UTF8
 
 $repo      = "zexadev/hudo"
 $installDir = "$env:USERPROFILE\.hudo\bin"
@@ -25,7 +23,7 @@ try {
 } catch {
     Write-Host "  ✗ 无法连接 GitHub API，请检查网络连接" -ForegroundColor Red
     Write-Host "    $_" -ForegroundColor DarkGray
-    exit 1
+    return
 }
 
 $version = $release.tag_name.TrimStart('v')
@@ -33,7 +31,7 @@ $asset   = $release.assets | Where-Object { $_.name -eq "hudo-x86_64-pc-windows-
 
 if (-not $asset) {
     Write-Host "  ✗ Release v$version 中未找到 hudo-x86_64-pc-windows-msvc.exe，请检查发布资产" -ForegroundColor Red
-    exit 1
+    return
 }
 
 $downloadUrl = $asset.browser_download_url
@@ -47,7 +45,7 @@ if (Test-Path $exePath) {
         if ($currentVer -eq $version) {
             Write-Host "  ✓ 已是最新版本 v$version，无需更新" -ForegroundColor Green
             Write-Host ""
-            exit 0
+            return
         }
         Write-Host "  ► 升级: v$currentVer → v$version" -ForegroundColor Cyan
     } catch {
@@ -66,7 +64,7 @@ try {
     Invoke-WebRequest -Uri $downloadUrl -OutFile $tmpPath -UseBasicParsing -ErrorAction Stop
 } catch {
     Write-Host "  ✗ 下载失败: $_" -ForegroundColor Red
-    exit 1
+    return
 }
 
 # ── 4. 安装（原子替换）──────────────────────────────────────────────────────
