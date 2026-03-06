@@ -1,7 +1,9 @@
 # hudo 安装脚本
-# 用法: irm https://raw.githubusercontent.com/YOUR_GITHUB_USERNAME/hudo/main/install.ps1 | iex
+# 用法: irm https://hudo.zexa.cc/install.ps1 | iex
 
 $ErrorActionPreference = "Stop"
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
 
 $repo      = "zexadev/hudo"
 $installDir = "$env:USERPROFILE\.hudo\bin"
