@@ -17,7 +17,7 @@ export default defineConfig({
       { text: '指南', link: '/guide/what-is-hudo' },
       { text: '工具列表', link: '/tools/' },
       {
-        text: 'v0.1.5',
+        text: 'v0.2.1',
         items: [
           { text: '更新日志', link: '/changelog' },
           { text: 'GitHub', link: 'https://github.com/zexadev/hudo' },

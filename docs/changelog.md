@@ -1,6 +1,20 @@
 # 更新日志
 
-## v0.1.5 <Badge type="tip" text="最新" />
+## v0.2.1 <Badge type="tip" text="最新" />
+
+**修复**
+- 安装脚本 (install.ps1) 改用纯 ASCII 英文，解决中文 Windows 控制台乱码
+- Claude Code 安装 SHA256 校验失败时自动清除缓存重试
+- 支持自动卸载系统已有的 Claude Code (npm)，解决 hudo 接管报错
+
+## v0.2.0
+
+**新增**
+- 跨平台支持 (Linux/macOS)
+- Claude Code 模型配置
+- CI 构建流程
+
+## v0.1.5
 
 **新增**
 - 新增 Google Chrome 安装器（企业版 MSI，静默安装，自动 UAC 提权）

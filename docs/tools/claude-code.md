@@ -10,6 +10,8 @@ hudo install claude-code
 
 从 Google Cloud Storage 下载官方二进制，安装到 `{install_root}\tools\claude-code\claude.exe`，并进行 SHA256 完整性校验。
 
+如果系统中已通过 npm 安装了 Claude Code，hudo 会自动卸载旧版（`npm uninstall -g @anthropic-ai/claude-code`）后重新安装到 hudo 目录。SHA256 校验失败时会自动清除缓存并重试一次。
+
 ## 安装后
 
 登录账号：
