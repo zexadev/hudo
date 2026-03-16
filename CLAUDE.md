@@ -6,6 +6,7 @@
 不得连续执行多个破坏性或不可逆操作（如 git push、release 发布、tag 删除）而不经用户同意。
 
 **git commit 信息必须使用中文。**
+**git commit 不要加 Co-Authored-By 行。**
 
 ---
 
@@ -47,19 +48,9 @@
    git push origin vx.y.z
    ```
 
-6. **构建 Release 二进制**
-   ```bash
-   cargo build --release
-   # 产物：target/release/hudo.exe
-   ```
-
-7. **创建 GitHub Release**（使用 gh CLI）
-   ```bash
-   "D:/hudo/tools/gh/gh.exe" release create vx.y.z target/release/hudo.exe \
-     --title "hudo vx.y.z" \
-     --notes "..."
-   ```
-   注意：gh.exe 在 `D:\hudo\tools\gh\gh.exe`（不在 bin/ 子目录）
+6. **等待 CI 自动构建发布**
+   推送 tag 后 GitHub Actions 会自动构建并创建 GitHub Release，无需手动操作。
+   文档站通过 Cloudflare Pages 自动部署。
 
 ---
 
@@ -118,13 +109,13 @@ src/
 
 - **名称**：hudo（混沌）— Windows 开发环境一键引导工具
 - **语言**：Rust，edition 2021，Windows 平台
-- **当前版本**：0.1.5
+- **当前版本**：0.2.1
 - **GitHub**：`zexadev/hudo`
 - **品牌**：Zexa（zexa.cc）
 
 ### 安装方式
 ```powershell
-irm https://raw.githubusercontent.com/zexadev/hudo/master/install.ps1 | iex
+irm hudo.zexa.cc/install.ps1 | iex
 ```
 
 ### 目录约定
@@ -179,3 +170,5 @@ irm https://raw.githubusercontent.com/zexadev/hudo/master/install.ps1 | iex
 - **`reg.save()` 必须在 `configure()` 之前**：否则 configure 失败时工具不会被记录到 state.json
 - **`detect_all_parallel`** 用于卸载列表，不能用 `fast_detect`（后者只读 state.json）
 - **gh auth token** 不导出到 profile 文件（安全考虑），新设备安装后自动引导 `gh auth login`
+- **install.ps1 有两份**：根目录 `install.ps1` 和 `docs/public/install.ps1`（Cloudflare Pages 部署用），修改时必须同步更新两份
+- **install.ps1 必须使用纯 ASCII 英文**：通过 `irm | iex` 执行时 PowerShell 5.x 可能用 GBK 解码，中文和 Unicode 字符会乱码

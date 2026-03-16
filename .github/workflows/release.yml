@@ -89,6 +89,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
+          VERSION="${TAG#v}"
+
+          # 从 changelog.md 提取当前版本的 release notes
+          NOTES=$(awk "/^## v${VERSION}/,/^## v[0-9]/" docs/changelog.md | head -n -1 | sed '1d;/^$/d')
+          if [ -z "$NOTES" ]; then
+            NOTES="Release $TAG"
+          fi
+
           # Collect all binaries from artifact subdirectories
           FILES=""
           for f in artifacts/*/; do
@@ -98,4 +106,4 @@ jobs:
           done
           gh release create "$TAG" $FILES \
             --title "hudo $TAG" \
-            --generate-notes
+            --notes "$NOTES"
