@@ -567,6 +567,7 @@ fn uninstall_from_system(tool_id: &str) -> Result<()> {
         "mysql" => uninstall_green(&["mysql"], &[]),
         "pgsql" => uninstall_green(&["psql"], &[]),
         "pycharm" => uninstall_green(&["pycharm64"], &[]),
+        "claude-code" => uninstall_claude_code(),
         _ => anyhow::bail!("不支持自动卸载: {}", tool_id),
     }
 }
@@ -654,6 +655,26 @@ fn uninstall_uv() -> Result<()> {
     env::EnvManager::broadcast_change();
     ui::print_success("旧版 uv 已清理");
     Ok(())
+}
+
+/// 卸载系统中已有的 Claude Code（npm 全局安装）
+#[cfg(windows)]
+fn uninstall_claude_code() -> Result<()> {
+    // 尝试 npm uninstall
+    let status = std::process::Command::new("cmd")
+        .args(["/c", "npm", "uninstall", "-g", "@anthropic-ai/claude-code"])
+        .status();
+
+    match status {
+        Ok(s) if s.success() => {
+            ui::print_success("旧版 Claude Code (npm) 已卸载");
+            return Ok(());
+        }
+        _ => {}
+    }
+
+    // npm 不可用或失败，尝试绿色方式清理
+    uninstall_green(&["claude"], &[])
 }
 
 /// 通用卸载：通过 where 找到旧二进制，从 PATH 移除其所在目录，并清理指定环境变量
