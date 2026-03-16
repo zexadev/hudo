@@ -192,17 +192,26 @@ impl Installer for ClaudeCodeInstaller {
         let url = format!("{}/{}/{}/{}", GCS_BUCKET, version, platform, exe);
         let cached_path = download::download(&url, &config.cache_dir(), &filename).await?;
 
-        // 4. SHA256 校验
+        // 4. SHA256 校验（失败时清除缓存自动重试一次）
         ui::print_action("校验文件完整性...");
         let actual_sha = sha256_file(&cached_path)?;
-        if actual_sha != expected_sha {
+        let cached_path = if actual_sha != expected_sha {
+            ui::print_action("SHA256 不匹配，清除缓存重新下载...");
             std::fs::remove_file(&cached_path).ok();
-            bail!(
-                "SHA256 校验失败！\n  预期: {}\n  实际: {}\n已删除损坏文件，请重试",
-                expected_sha,
-                actual_sha
-            );
-        }
+            let retry_path = download::download(&url, &config.cache_dir(), &filename).await?;
+            let retry_sha = sha256_file(&retry_path)?;
+            if retry_sha != expected_sha {
+                std::fs::remove_file(&retry_path).ok();
+                bail!(
+                    "SHA256 校验失败！\n  预期: {}\n  实际: {}\n已删除损坏文件，请检查网络后重试",
+                    expected_sha,
+                    retry_sha
+                );
+            }
+            retry_path
+        } else {
+            cached_path
+        };
         ui::print_success("SHA256 校验通过");
 
         // 5. 安装到 tools/claude-code/
