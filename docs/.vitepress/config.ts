@@ -2,20 +2,20 @@ import { defineConfig } from 'vitepress'
 
 export default defineConfig({
   title: 'hudo',
-  description: 'Windows 开发环境一键引导工具',
+  description: '开发环境一键引导工具',
   lang: 'zh-CN',
 
   head: [
     ['link', { rel: 'icon', href: '/favicon.ico' }],
-    ['meta', { name: 'keywords', content: 'hudo, Windows, dev tools, development environment, bootstrap, 开发环境, 一键安装' }],
+    ['meta', { name: 'keywords', content: 'hudo, dev tools, development environment, bootstrap, Windows, Linux, macOS, 开发环境, 一键安装' }],
     ['meta', { property: 'og:title', content: 'hudo - Dev Environment Bootstrap Tool' }],
-    ['meta', { property: 'og:description', content: 'Windows development environment bootstrap tool. Install Git, Node.js, Rust, Go, JDK, Python and more with one command.' }],
+    ['meta', { property: 'og:description', content: 'Dev environment bootstrap tool for Windows, Linux and macOS. Install Git, Node.js, Rust, Go, JDK, Python and more with one command.' }],
     ['meta', { property: 'og:type', content: 'website' }],
     ['meta', { property: 'og:url', content: 'https://hudo.zexa.cc' }],
     ['meta', { property: 'og:site_name', content: 'hudo' }],
     ['meta', { name: 'twitter:card', content: 'summary' }],
     ['meta', { name: 'twitter:title', content: 'hudo - Dev Environment Bootstrap Tool' }],
-    ['meta', { name: 'twitter:description', content: 'Windows development environment bootstrap tool. One command to install all your dev tools.' }],
+    ['meta', { name: 'twitter:description', content: 'Dev environment bootstrap tool for Windows, Linux and macOS. One command to install all your dev tools.' }],
   ],
 
   sitemap: {
@@ -91,7 +91,7 @@ export default defineConfig({
 
     footer: {
       message: '基于 MIT 协议发布',
-      copyright: 'Copyright © 2025 Zexa'
+      copyright: 'Copyright © 2025-2026 Zexa'
     },
 
     search: {
