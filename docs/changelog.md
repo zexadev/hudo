@@ -1,6 +1,14 @@
 # 更新日志
 
-## v0.2.1 <Badge type="tip" text="最新" />
+## v0.2.2 <Badge type="tip" text="最新" />
+
+**修复**
+- 适配 Claude Code 新版 manifest 结构（platforms.checksum），修复安装时找不到执行文件
+
+**优化**
+- 补全文档站 SEO 配置（Open Graph、sitemap、robots.txt）
+
+## v0.2.1
 
 **修复**
 - 安装脚本 (install.ps1) 改用纯 ASCII 英文，解决中文 Windows 控制台乱码
