@@ -7,7 +7,20 @@ export default defineConfig({
 
   head: [
     ['link', { rel: 'icon', href: '/favicon.ico' }],
+    ['meta', { name: 'keywords', content: 'hudo, Windows, dev tools, development environment, bootstrap, 开发环境, 一键安装' }],
+    ['meta', { property: 'og:title', content: 'hudo - Dev Environment Bootstrap Tool' }],
+    ['meta', { property: 'og:description', content: 'Windows development environment bootstrap tool. Install Git, Node.js, Rust, Go, JDK, Python and more with one command.' }],
+    ['meta', { property: 'og:type', content: 'website' }],
+    ['meta', { property: 'og:url', content: 'https://hudo.zexa.cc' }],
+    ['meta', { property: 'og:site_name', content: 'hudo' }],
+    ['meta', { name: 'twitter:card', content: 'summary' }],
+    ['meta', { name: 'twitter:title', content: 'hudo - Dev Environment Bootstrap Tool' }],
+    ['meta', { name: 'twitter:description', content: 'Windows development environment bootstrap tool. One command to install all your dev tools.' }],
   ],
+
+  sitemap: {
+    hostname: 'https://hudo.zexa.cc',
+  },
 
   themeConfig: {
     logo: '/logo.png',
