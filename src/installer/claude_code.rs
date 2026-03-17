@@ -100,10 +100,10 @@ async fn fetch_manifest_sha256(version: &str, platform: &str) -> Result<String> 
         .await
         .context("解析 manifest JSON 失败")?;
 
-    // manifest 结构: { "win32-x64": { "sha256": "..." }, ... }
-    let sha = manifest[platform]["sha256"]
+    // manifest 结构: { "platforms": { "win32-x64": { "checksum": "..." }, ... } }
+    let sha = manifest["platforms"][platform]["checksum"]
         .as_str()
-        .with_context(|| format!("manifest 中找不到平台 {} 的 SHA256", platform))?;
+        .with_context(|| format!("manifest 中找不到平台 {} 的 checksum", platform))?;
     Ok(sha.to_string())
 }
 
