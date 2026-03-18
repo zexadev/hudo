@@ -1,6 +1,12 @@
 # 更新日志
 
-## v0.2.2 <Badge type="tip" text="最新" />
+## v0.2.3 <Badge type="tip" text="最新" />
+
+**修复**
+- Node.js 安装后 `node` 命令不可用：安装时自动设置 PowerShell 执行策略（`RemoteSigned`）
+- MinGW-w64 下载失败：改为从 GitHub API 动态获取最新版本，不再依赖硬编码 URL
+
+## v0.2.2
 
 **修复**
 - 适配 Claude Code 新版 manifest 结构（platforms.checksum），修复安装时找不到执行文件

@@ -153,6 +153,24 @@ impl Installer for NodejsInstaller {
         let fnm_dir = ctx.config.tools_dir().join("fnm");
         let fnm_exe = fnm_dir.join("fnm.exe");
 
+        // 设置 PowerShell 执行策略，允许 profile 脚本运行
+        let policy_status = std::process::Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-Command",
+                "Set-ExecutionPolicy RemoteSigned -Scope CurrentUser -Force",
+            ])
+            .status();
+        match policy_status {
+            Ok(s) if s.success() => {
+                crate::ui::print_success("已设置 PowerShell 执行策略 (RemoteSigned)");
+            }
+            _ => {
+                crate::ui::print_warning("设置执行策略失败，如 node 命令不可用，请手动运行：");
+                crate::ui::print_info("  Set-ExecutionPolicy RemoteSigned -Scope CurrentUser");
+            }
+        }
+
         // 写入 PowerShell profile
         if let Err(e) = write_powershell_profile(&fnm_exe) {
             crate::ui::print_warning(&format!("写入 PowerShell profile 失败: {}", e));

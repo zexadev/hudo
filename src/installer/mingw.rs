@@ -9,8 +9,9 @@ use crate::download;
 pub struct MingwInstaller;
 
 /// MinGW-w64 via winlibs (GCC + MinGW-w64, standalone build)
-const MINGW_VERSION: &str = "14.2.0";
-const MINGW_RELEASE: &str = "14.2.0-19.1.7-12.0.0-ucrt-r2";
+const MINGW_GCC_VERSION: &str = "15.2.0";
+const MINGW_W64_VERSION: &str = "13.0.0";
+const MINGW_REVISION: &str = "r6";
 
 #[async_trait]
 impl Installer for MingwInstaller {
@@ -54,19 +55,32 @@ impl Installer for MingwInstaller {
     }
 
     fn resolve_download(&self, _config: &HudoConfig) -> (String, String) {
-        // winlibs standalone GCC build (UCRT runtime, no MSYS2 needed)
-        let filename = format!("winlibs-x86_64-posix-seh-gcc-{}-mingw-w64ucrt.zip", MINGW_RELEASE);
-        let url = format!(
-            "https://github.com/brechtsanders/winlibs_mingw/releases/download/{}-posix-seh-ucrt-r2/{}",
-            MINGW_VERSION, filename
-        );
+        // 实际下载 URL 在 install() 中动态获取，此处仅作 trait 占位
+        // 回退到硬编码版本（与 install() 中的 unwrap_or_else 一致）
+        let tag = format!("{}posix-{}-ucrt-{}", MINGW_GCC_VERSION, MINGW_W64_VERSION, MINGW_REVISION);
+        let filename = format!("winlibs-x86_64-posix-seh-gcc-{}-mingw-w64ucrt-{}-{}.zip", MINGW_GCC_VERSION, MINGW_W64_VERSION, MINGW_REVISION);
+        let url = format!("https://github.com/brechtsanders/winlibs_mingw/releases/download/{}/{}", tag, filename);
         (url, filename)
     }
 
     async fn install(&self, ctx: &InstallContext<'_>) -> Result<InstallResult> {
         let config = ctx.config;
         let install_dir = config.tools_dir().join("mingw64");
-        let (url, filename) = self.resolve_download(config);
+
+        crate::ui::print_action("查询 MinGW-w64 最新版本...");
+        let (url, filename, gcc_version) = match crate::version::mingw_latest().await {
+            Some((tag, filename, gcc_version)) => {
+                let url = format!(
+                    "https://github.com/brechtsanders/winlibs_mingw/releases/download/{}/{}",
+                    tag, filename
+                );
+                (url, filename, gcc_version)
+            }
+            None => {
+                let (url, filename) = self.resolve_download(config);
+                (url, filename, MINGW_GCC_VERSION.to_string())
+            }
+        };
 
         let zip_path = download::download(&url, &config.cache_dir(), &filename).await?;
 
@@ -83,7 +97,7 @@ impl Installer for MingwInstaller {
             anyhow::bail!("解压后未找到 gcc.exe，安装可能失败");
         }
 
-        let version = get_gcc_version(&install_dir).unwrap_or_else(|| MINGW_VERSION.to_string());
+        let version = get_gcc_version(&install_dir).unwrap_or(gcc_version);
 
         Ok(InstallResult {
             install_path: install_dir,

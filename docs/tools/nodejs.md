@@ -12,6 +12,14 @@ hudo install nodejs
 
 ## 安装后
 
+安装完成后重新打开终端即可使用 `node`、`npm`、`fnm` 命令。
+
+> hudo 安装时会自动设置 PowerShell 执行策略（`RemoteSigned`）并写入 `$PROFILE`，确保 fnm 初始化脚本可以运行。
+> 如果重开终端后命令仍不可用，手动执行：
+> ```powershell
+> Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
+> ```
+
 ```powershell
 node --version
 npm --version

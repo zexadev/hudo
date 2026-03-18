@@ -154,6 +154,42 @@ pub async fn claude_code_latest() -> Option<String> {
     Some(resp.trim().to_string())
 }
 
+/// MinGW-w64 via winlibs：GitHub Releases → (tag, filename, gcc_version)
+/// tag 格式: "15.2.0posix-13.0.0-ucrt-r6"
+/// 文件格式: "winlibs-x86_64-posix-seh-gcc-15.2.0-mingw-w64ucrt-13.0.0-r6.zip"
+pub async fn mingw_latest() -> Option<(String, String, String)> {
+    let client = make_client().ok()?;
+    let resp: serde_json::Value = client
+        .get("https://api.github.com/repos/brechtsanders/winlibs_mingw/releases/latest")
+        .header("User-Agent", "hudo")
+        .send()
+        .await
+        .ok()?
+        .json()
+        .await
+        .ok()?;
+    let tag = resp["tag_name"].as_str()?.to_string();
+    // 从 assets 找 x86_64 posix ucrt zip
+    let filename = resp["assets"]
+        .as_array()?
+        .iter()
+        .filter_map(|a| a["name"].as_str())
+        .find(|name| {
+            name.contains("x86_64")
+                && name.contains("posix")
+                && name.contains("ucrt")
+                && name.ends_with(".zip")
+        })?
+        .to_string();
+    // 从文件名提取 gcc 版本: "winlibs-x86_64-posix-seh-gcc-15.2.0-mingw-..."
+    let gcc_version = filename
+        .strip_prefix("winlibs-x86_64-posix-seh-gcc-")?
+        .split('-')
+        .next()?
+        .to_string();
+    Some((tag, filename, gcc_version))
+}
+
 /// hudo 自身：GitHub Releases → 最新版本号（如 "0.2.0"）
 pub async fn hudo_latest() -> Option<String> {
     let client = make_client().ok()?;
