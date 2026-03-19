@@ -75,6 +75,7 @@ export default defineConfig({
             { text: 'Miniconda', link: '/tools/miniconda' },
             { text: 'MySQL', link: '/tools/mysql' },
             { text: 'PostgreSQL', link: '/tools/pgsql' },
+            { text: 'Redis', link: '/tools/redis' },
             { text: 'VS Code', link: '/tools/vscode' },
             { text: 'PyCharm', link: '/tools/pycharm' },
             { text: 'MinGW', link: '/tools/mingw' },

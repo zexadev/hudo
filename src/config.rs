@@ -68,6 +68,7 @@ pub struct MirrorConfig {
     pub pgsql: Option<String>,
     pub maven: Option<String>,
     pub gradle: Option<String>,
+    pub redis: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
@@ -81,6 +82,7 @@ pub struct VersionConfig {
     pub maven: Option<String>,
     pub gradle: Option<String>,
     pub claude_code: Option<String>,
+    pub redis: Option<String>,
 }
 
 impl HudoConfig {

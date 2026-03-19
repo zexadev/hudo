@@ -83,6 +83,7 @@ src/
     ├── miniconda.rs
     ├── mysql.rs
     ├── pgsql.rs
+    ├── redis.rs
     ├── vscode.rs
     ├── pycharm.rs
     ├── chrome.rs
@@ -126,13 +127,13 @@ irm hudo.zexa.cc/install.ps1 | iex
   - `ide/` — IDE（vscode, pycharm）
   - `cache/` — 下载缓存
 
-### 支持的工具（19 个）
+### 支持的工具（20 个）
 | 分类 | 工具 ID |
 |------|---------|
 | 版本控制 | git, gh |
 | 运行时 | nodejs, bun, uv（Python）, miniconda, go, rust |
 | JVM | jdk, maven, gradle |
-| 数据库 | mysql, pgsql |
+| 数据库 | mysql, pgsql, redis |
 | IDE | vscode, pycharm |
 | 系统工具 | c（MinGW）, chrome, claude-code |
 
@@ -166,7 +167,7 @@ irm hudo.zexa.cc/install.ps1 | iex
 - **`.bat`/`.cmd` 文件**不能直接用 `Command::new()` 执行，必须通过 `cmd /c <file>` 调用（影响 gradle、maven 检测）
 - **emoji 图标**在 Windows 10 旧控制台不支持，使用 ASCII `[T][L][D][E]` 代替
 - **gh.exe 路径**：安装后在 `tools/gh/gh.exe`（不在 `bin/` 子目录），检测和 PATH 已兼容两种结构
-- **Windows 服务注册**（MySQL/PostgreSQL）：`mysqld --install` 退出码不可信，必须用 `sc query` 二次验证；服务注册和停止需要 UAC 提权（`run_as_admin`）
+- **Windows 服务注册**（MySQL/PostgreSQL/Redis）：`mysqld --install` 退出码不可信，必须用 `sc query` 二次验证；服务注册和停止需要 UAC 提权（`run_as_admin`）
 - **`reg.save()` 必须在 `configure()` 之前**：否则 configure 失败时工具不会被记录到 state.json
 - **`detect_all_parallel`** 用于卸载列表，不能用 `fast_detect`（后者只读 state.json）
 - **gh auth token** 不导出到 profile 文件（安全考虑），新设备安装后自动引导 `gh auth login`

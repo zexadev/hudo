@@ -107,7 +107,7 @@ impl ToolCategory {
         match id {
             "git" | "gh" | "claude-code" => ToolCategory::Tool,
             "uv" | "nodejs" | "bun" | "miniconda" | "rust" | "go" | "jdk" | "c" | "maven" | "gradle" => ToolCategory::Language,
-            "mysql" | "pgsql" => ToolCategory::Database,
+            "mysql" | "pgsql" | "redis" => ToolCategory::Database,
             "vscode" | "pycharm" | "chrome" => ToolCategory::Ide,
             _ => ToolCategory::Tool,
         }

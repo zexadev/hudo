@@ -154,6 +154,29 @@ pub async fn claude_code_latest() -> Option<String> {
     Some(resp.trim().to_string())
 }
 
+/// Redis: GitHub API (redis-windows) → 最新版本号（如 "8.6.1"）
+/// tag 格式: "8.6.1.1" → 取前三段 "8.6.1"
+pub async fn redis_latest() -> Option<String> {
+    let client = make_client().ok()?;
+    let resp: serde_json::Value = client
+        .get("https://api.github.com/repos/redis-windows/redis-windows/releases/latest")
+        .header("User-Agent", "hudo")
+        .send()
+        .await
+        .ok()?
+        .json()
+        .await
+        .ok()?;
+    let tag = resp["tag_name"].as_str()?; // "8.6.1.1"
+    // 取前三段作为 Redis 版本号
+    let parts: Vec<&str> = tag.split('.').collect();
+    if parts.len() >= 3 {
+        Some(parts[..3].join("."))
+    } else {
+        Some(tag.to_string())
+    }
+}
+
 /// MinGW-w64 via winlibs：GitHub Releases → (tag, filename, gcc_version)
 /// tag 格式: "15.2.0posix-13.0.0-ucrt-r6"
 /// 文件格式: "winlibs-x86_64-posix-seh-gcc-15.2.0-mingw-w64ucrt-13.0.0-r6.zip"

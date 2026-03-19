@@ -34,6 +34,7 @@ hudo 支持安装以下工具，按分类列出：
 |------|------|
 | [MySQL](./mysql) | 关系型数据库 |
 | [PostgreSQL](./pgsql) | 关系型数据库 |
+| [Redis](./redis) | 内存数据库 |
 
 ## IDE & 编辑器
 

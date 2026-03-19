@@ -28,6 +28,8 @@ pub mod nodejs;
 #[cfg(windows)]
 pub mod pgsql;
 #[cfg(windows)]
+pub mod redis;
+#[cfg(windows)]
 pub mod pycharm;
 #[cfg(windows)]
 pub mod rustup;
@@ -218,6 +220,7 @@ pub fn all_installers() -> Vec<Box<dyn Installer>> {
         // 数据库
         list.push(Box::new(mysql::MysqlInstaller));
         list.push(Box::new(pgsql::PgsqlInstaller));
+        list.push(Box::new(redis::RedisInstaller));
         // 编辑器 / IDE
         list.push(Box::new(vscode::VscodeInstaller));
         list.push(Box::new(pycharm::PycharmInstaller));
