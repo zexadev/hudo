@@ -1,6 +1,16 @@
 # 更新日志
 
-## v0.2.3 <Badge type="tip" text="最新" />
+## v0.2.5 <Badge type="tip" text="最新" />
+
+**新增**
+- 新增 Redis 安装器：使用 redis-windows 预编译包，自动注册 Windows 服务
+
+## v0.2.4
+
+**新增**
+- VS Code 安装后自动注册右键菜单「通过 Code 打开」
+
+## v0.2.3
 
 **修复**
 - Node.js 安装后 `node` 命令不可用：安装时自动设置 PowerShell 执行策略（`RemoteSigned`）
