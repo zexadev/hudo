@@ -1,10 +1,17 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use async_trait::async_trait;
 use std::path::PathBuf;
 
 use super::{DetectResult, EnvAction, InstallContext, InstallResult, Installer, ToolInfo};
 use crate::config::HudoConfig;
 use crate::download;
+
+/// 右键菜单注册表路径
+const CONTEXT_MENU_KEYS: &[&str] = &[
+    r"Software\Classes\*\shell\VSCode",                    // 右键文件
+    r"Software\Classes\Directory\shell\VSCode",            // 右键文件夹
+    r"Software\Classes\Directory\Background\shell\VSCode", // 右键文件夹空白处
+];
 
 pub struct VscodeInstaller;
 
@@ -153,6 +160,15 @@ impl Installer for VscodeInstaller {
             },
         ]
     }
+
+    async fn configure(&self, ctx: &InstallContext<'_>) -> Result<()> {
+        register_context_menu(ctx.config)
+    }
+
+    async fn pre_uninstall(&self, _ctx: &InstallContext<'_>) -> Result<()> {
+        unregister_context_menu();
+        Ok(())
+    }
 }
 
 fn get_vscode_version(install_dir: &PathBuf) -> Option<String> {
@@ -168,4 +184,47 @@ fn get_vscode_version(install_dir: &PathBuf) -> Option<String> {
                 .next()
                 .map(|s| s.to_string())
         })
+}
+
+/// 注册 Windows 右键菜单「通过 Code 打开」
+fn register_context_menu(config: &HudoConfig) -> Result<()> {
+    use winreg::enums::*;
+    use winreg::RegKey;
+
+    let code_exe = config.ide_dir().join("vscode").join("Code.exe");
+    let code_path = code_exe.to_string_lossy();
+    let icon_value = format!("{},0", code_path);
+
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+
+    for key_path in CONTEXT_MENU_KEYS {
+        let (shell_key, _) = hkcu
+            .create_subkey(key_path)
+            .with_context(|| format!("创建注册表项 {} 失败", key_path))?;
+        shell_key.set_value("", &"通过 Code 打开")?;
+        shell_key.set_value("Icon", &icon_value)?;
+
+        let (cmd_key, _) = shell_key.create_subkey("command")?;
+        // 文件夹空白处使用 %V 表示当前目录，文件/文件夹使用 %1
+        let cmd_value = if key_path.contains("Background") {
+            format!("\"{}\" \"%V\"", code_path)
+        } else {
+            format!("\"{}\" \"%1\"", code_path)
+        };
+        cmd_key.set_value("", &cmd_value)?;
+    }
+
+    crate::ui::print_action("已注册右键菜单「通过 Code 打开」");
+    Ok(())
+}
+
+/// 卸载时清理右键菜单注册表项
+fn unregister_context_menu() {
+    use winreg::enums::*;
+    use winreg::RegKey;
+
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    for key_path in CONTEXT_MENU_KEYS {
+        let _ = hkcu.delete_subkey_all(key_path);
+    }
 }
