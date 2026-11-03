@@ -6,6 +6,8 @@
 
 > **hudo** is a one-command Windows dev environment bootstrapper: installs 26 developer tools (Git, Node.js, Rust, Go, JDK, Python, MySQL, VS Code, ...) with automatic PATH/env configuration, no admin rights required, China-mirror fallback, and profile export/import for one-command machine migration. Docs: [hudo.zexa.cc](https://hudo.zexa.cc)
 
+> 官方仓库 / Official repository: [github.com/zexadev/hudo](https://github.com/zexadev/hudo) —— 发版与 issue 都在这里，各 fork 不由本仓维护。
+
 ![hudo 交互式主菜单](docs/public/img/blog/hudo-menu.png)
 
 ---
