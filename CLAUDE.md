@@ -179,6 +179,7 @@ irm hudo.zexa.cc/install.ps1 | iex
 - **交互菜单层有错误边界**：`interactive_menu` 捕获子流程 Err 展示后回菜单；不要用 `bail!` 表达用户主动取消（会被当成程序错误）。所有页面统一用 `ui::page_header`（完整 banner）——头部高度必须一致，否则切换页面时内容会跳行（用户明确要求保留全局 hudo 标志）
 - **configure() 失败不算安装失败**：`run_configure` 降级为警告（安装与 state.json 记录已完成），提示用 `hudo install <id>` 重新配置
 
+- **启动 Windows PowerShell 5.1 必须用 `installer::winps_command()`**，禁止裸 `Command::new("powershell")`：它会清掉继承的 `PSModulePath`，否则用户在 pwsh 7 里运行 hudo 时 5.1 会误加载 Core 版模块而失败（issue #1）
 - **`.bat`/`.cmd` 文件**不能直接用 `Command::new()` 执行，必须通过 `cmd /c <file>` 调用（影响 gradle、maven 检测）
 - **emoji 图标**在 Windows 10 旧控制台不支持，使用 ASCII `[T][L][D][E]` 代替
 - **gh.exe 路径**：安装后在 `tools/gh/gh.exe`（不在 `bin/` 子目录），检测和 PATH 已兼容两种结构
