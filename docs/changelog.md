@@ -9,7 +9,12 @@ head:
 
 # 更新日志
 
-## v0.4.0 <Badge type="tip" text="最新" />
+## v0.4.1 <Badge type="tip" text="最新" />
+
+**修复**
+- 在 PowerShell 7 中运行 hudo 时，uv / .NET SDK 等依赖 Windows PowerShell 脚本的安装失败（报 `Get-ExecutionPolicy` 无法加载模块 Microsoft.PowerShell.Security）。原因是子进程继承了 pwsh 7 的 `PSModulePath`，现启动前清除该变量（#1）
+
+## v0.4.0
 
 **新功能**
 - 新增 6 款工具：IntelliJ IDEA、7-Zip、PowerShell 7、.NET SDK、PowerToys、Oh My Posh（捆绑 Nerd Font 与 profile 注入），支持工具总数达到 26 款

@@ -42,7 +42,7 @@
     <section class="hero">
       <!-- 仪表角标：整页是一台运行中的仪器 -->
       <div class="hud" aria-hidden="true">
-        <span class="hud-c hud-tl">SYS // HUDO v0.4.0</span>
+        <span class="hud-c hud-tl">SYS // HUDO v0.4.1</span>
         <span class="hud-c hud-tr">PHASE 01 / ENV BOOTSTRAP</span>
         <span class="hud-c hud-bl">26 TOOLS / 4 MIRRORS</span>
         <span class="hud-c hud-br">UAC PROMPTS: 0 ▮</span>
@@ -50,7 +50,7 @@
       <div class="wrap">
         <a href="/changelog" class="badge" data-reveal>
           <span class="badge-dot"></span>
-          <span class="badge-text">v0.4.0 — MIT Licensed</span>
+          <span class="badge-text">v0.4.1 — MIT Licensed</span>
           <span class="badge-arrow">→</span>
         </a>
 

@@ -121,7 +121,7 @@ src/
 
 - **名称**：hudo（混沌）— Windows 开发环境一键引导工具
 - **语言**：Rust，edition 2021，Windows 平台
-- **当前版本**：0.4.0
+- **当前版本**：0.4.1
 - **GitHub**：`zexadev/hudo`
 - **品牌**：Zexa（zexa.cc）
 
