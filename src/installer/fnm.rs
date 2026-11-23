@@ -231,7 +231,7 @@ fn fnm_node_dir(config: &HudoConfig) -> PathBuf {
 }
 
 fn write_powershell_profile(fnm_exe: &std::path::Path) -> Result<()> {
-    let output = std::process::Command::new("powershell")
+    let output = crate::installer::winps_command()
         .args(["-NoProfile", "-Command", "$PROFILE"])
         .output()
         .context("无法获取 PowerShell profile 路径")?;

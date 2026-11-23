@@ -83,7 +83,7 @@ impl Installer for DotnetInstaller {
 
         // 官方脚本自带下载与解压逻辑（Azure CDN），-NoPath 由 hudo 统一管理环境变量
         let sp = crate::ui::spinner(&format!("安装 .NET SDK {}（脚本下载约数百 MB）...", version));
-        let output = std::process::Command::new("powershell")
+        let output = crate::installer::winps_command()
             .args([
                 "-NoProfile",
                 "-ExecutionPolicy",

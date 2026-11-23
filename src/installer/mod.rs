@@ -222,6 +222,18 @@ fn clear_readonly_recursive(path: &std::path::Path) -> std::io::Result<()> {
     Ok(())
 }
 
+/// 启动 Windows PowerShell 5.1（powershell.exe）的统一入口。
+///
+/// 必须清掉继承的 `PSModulePath`：pwsh 7 会把自己的模块目录前插进该变量，
+/// 经 hudo.exe 透传给 5.1 后，5.1 优先命中 Core 版 `Microsoft.PowerShell.Security`
+/// 等模块并加载失败（`Get-ExecutionPolicy` 无法加载模块 → 脚本退出码 1）。
+/// 变量缺省时 5.1 会按注册表 + 默认目录自行重建模块路径。
+pub fn winps_command() -> std::process::Command {
+    let mut cmd = std::process::Command::new("powershell");
+    cmd.env_remove("PSModulePath");
+    cmd
+}
+
 /// 旧版 hudo 的 fnm 安装痕迹检测：`lang/node/` 下存在 `node-versions/` 或 `aliases/`
 #[cfg(windows)]
 pub fn is_legacy_fnm_dir(node_dir: &std::path::Path) -> bool {
@@ -232,7 +244,7 @@ pub fn is_legacy_fnm_dir(node_dir: &std::path::Path) -> bool {
 /// 返回值：是否实际修改了文件。
 #[cfg(windows)]
 pub fn clean_fnm_profile_lines() -> anyhow::Result<bool> {
-    let output = std::process::Command::new("powershell")
+    let output = winps_command()
         .args(["-NoProfile", "-Command", "$PROFILE"])
         .output();
     let Ok(out) = output else { return Ok(false) };
@@ -300,7 +312,7 @@ pub fn run_as_admin(program: &str, args: &[&str]) -> anyhow::Result<()> {
         arg_list.join(", ")
     );
 
-    let output = std::process::Command::new("powershell")
+    let output = winps_command()
         .args(["-NoProfile", "-Command", &ps_cmd])
         .output()?;
 

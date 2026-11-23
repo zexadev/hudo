@@ -67,7 +67,7 @@ impl Installer for UvInstaller {
 
         // 用 PowerShell 执行官方安装脚本
         crate::ui::print_action("安装 uv...");
-        let status = std::process::Command::new("powershell")
+        let status = crate::installer::winps_command()
             .args([
                 "-ExecutionPolicy",
                 "ByPass",

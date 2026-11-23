@@ -172,7 +172,7 @@ fn file_version(exe: &std::path::Path) -> Option<String> {
         "(Get-Item '{}').VersionInfo.ProductVersion",
         exe.to_string_lossy().replace('\'', "''")
     );
-    std::process::Command::new("powershell")
+    crate::installer::winps_command()
         .args(["-NoProfile", "-Command", &ps_cmd])
         .output()
         .ok()

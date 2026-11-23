@@ -1474,7 +1474,7 @@ async fn cmd_self_uninstall() -> Result<()> {
     // 脱离控制台启动后台清理
     use std::os::windows::process::CommandExt;
     const DETACHED_PROCESS: u32 = 0x00000008;
-    let _ = std::process::Command::new("powershell")
+    let _ = crate::installer::winps_command()
         .args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", &ps_cmd])
         .creation_flags(DETACHED_PROCESS)
         .spawn();
@@ -1568,7 +1568,7 @@ async fn cmd_update() -> Result<()> {
     let old_str = old_exe.to_string_lossy().to_string();
     use std::os::windows::process::CommandExt;
     const DETACHED_PROCESS: u32 = 0x00000008;
-    let _ = std::process::Command::new("powershell")
+    let _ = crate::installer::winps_command()
         .args([
             "-NoProfile",
             "-WindowStyle",

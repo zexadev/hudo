@@ -141,7 +141,7 @@ fn get_chrome_version(chrome_exe: &PathBuf) -> Option<String> {
         "(Get-Item '{}').VersionInfo.FileVersion",
         path_str.replace('\'', "''")
     );
-    std::process::Command::new("powershell")
+    crate::installer::winps_command()
         .args(["-NoProfile", "-Command", &ps_cmd])
         .output()
         .ok()
